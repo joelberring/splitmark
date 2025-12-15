@@ -1,0 +1,47 @@
+{
+    "name": "Splitmark",
+    "short_name": "Splitmark",
+    "description": "Next generation orienteering platform combining MeOS, Livelox, and Strava functionality",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#10b981",
+    "orientation": "portrait",
+    "scope": "/",
+    "icons": [
+        {
+            "src": "/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "categories": [
+        "sports",
+        "navigation",
+        "utilities"
+    ],
+    "shortcuts": [
+        {
+            "name": "Browse Events",
+            "url": "/events",
+            "description": "Browse upcoming orienteering events"
+        },
+        {
+            "name": "Admin",
+            "url": "/admin",
+            "description": "Competition administration"
+        },
+        {
+            "name": "My Tracks",
+            "url": "/tracks",
+            "description": "View your GPS tracks"
+        }
+    ]
+}

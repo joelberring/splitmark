@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+:root {
+  /* Midnight & Emerald Theme */
+  --background: #020617;
+  /* Slate 950 */
+  --foreground: #f1f5f9;
+  /* Slate 100 */
+
+  /* Emerald Branding */
+  --primary: #10b981;
+  /* Emerald 500 */
+  --primary-foreground: #ffffff;
+
+  /* UI Elements */
+  --card: #0f172a;
+  /* Slate 900 */
+  --card-foreground: #f1f5f9;
+  --border: #1e293b;
+  /* Slate 800 */
+  --muted: #334155;
+  /* Slate 700 */
+  --muted-foreground: #94a3b8;
+  /* Slate 400 */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Outfit', sans-serif;
+  /* We will add this font in layout.tsx */
+}
