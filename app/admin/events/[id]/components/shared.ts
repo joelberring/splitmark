@@ -27,22 +27,29 @@ export interface Entry {
     id: string;
     name: string;
     club: string;
-    classId: string;
+    classId?: string;
+    className?: string;
     siCard?: string;
     startTime?: string;
     status: 'registered' | 'started' | 'finished' | 'dns' | 'dnf';
 }
 
 export function saveEvent(event: EventData) {
-    const stored = localStorage.getItem('events');
-    const events = stored ? JSON.parse(stored) : [];
-    const index = events.findIndex((e: EventData) => e.id === event.id);
-    if (index >= 0) {
-        events[index] = event;
-    } else {
-        events.push(event);
-    }
-    localStorage.setItem('events', JSON.stringify(events));
+    // Import dynamically to avoid SSR issues
+    import('@/lib/firestore/events').then(({ saveEvent: firestoreSave }) => {
+        firestoreSave(event as any).catch(console.error);
+    }).catch(() => {
+        // Fallback to localStorage
+        const stored = localStorage.getItem('events');
+        const events = stored ? JSON.parse(stored) : [];
+        const index = events.findIndex((e: EventData) => e.id === event.id);
+        if (index >= 0) {
+            events[index] = event;
+        } else {
+            events.push(event);
+        }
+        localStorage.setItem('events', JSON.stringify(events));
+    });
 }
 
 // Purple Pen XML parser

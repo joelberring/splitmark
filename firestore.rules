@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Events collection
+    match /events/{eventId} {
+      // Anyone can read published events
+      allow read: if resource.data.status == 'active' || resource.data.status == 'completed';
+      
+      // Authenticated users can read all events (including drafts)
+      allow read: if request.auth != null;
+      
+      // Authenticated users can create events
+      allow create: if request.auth != null;
+      
+      // Event creators/admins can update/delete
+      allow update, delete: if request.auth != null && 
+        (resource.data.createdBy == request.auth.uid || 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      // Users can read their own profile
+      allow read: if request.auth != null && request.auth.uid == userId;
+      
+      // Users can update their own profile
+      allow write: if request.auth != null && request.auth.uid == userId;
+      
+      // Admins can read all users
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Clubs collection
+    match /clubs/{clubId} {
+      // Anyone can read clubs
+      allow read: if true;
+      
+      // Only authenticated users can create clubs
+      allow create: if request.auth != null;
+      
+      // Club admins can update
+      allow update, delete: if request.auth != null &&
+        resource.data.admins.hasAny([request.auth.uid]);
+    }
+    
+    // Entries subcollection (under events)
+    match /events/{eventId}/entries/{entryId} {
+      // Same rules as parent event
+      allow read: if get(/databases/$(database)/documents/events/$(eventId)).data.status == 'active';
+      allow read, write: if request.auth != null;
+    }
+    
+    // Results subcollection
+    match /events/{eventId}/results/{resultId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}

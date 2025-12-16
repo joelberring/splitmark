@@ -23,64 +23,31 @@ export default function SpectatePage() {
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<'live' | 'upcoming'>('live');
 
+
+
     useEffect(() => {
-        loadLiveEvents();
+        // Subscribe to real-time updates
+        import('@/lib/firestore/events').then(({ subscribeToEvents }) => {
+            const unsubscribe = subscribeToEvents((firestoreEvents) => {
+                const mappedEvents: LiveEvent[] = firestoreEvents.map(e => ({
+                    id: e.id,
+                    name: e.name,
+                    location: e.location || 'Okänd plats',
+                    date: e.date,
+                    status: e.status === 'active' ? 'live' : e.status === 'draft' ? 'upcoming' : 'finished',
+                    activeRunners: e.entries.filter(ent => ent.status === 'started').length,
+                    totalRunners: e.entries.length,
+                    classes: e.classes?.map(c => c.name) || [],
+                    organizer: 'Arrangör', // TODO: Add organizer to event model
+                }));
+                // Filter out completed/draft events that aren't relevant? 
+                // Currently keeping them but mapping status.
+                setEvents(mappedEvents);
+                setLoading(false);
+            });
+            return () => unsubscribe();
+        });
     }, []);
-
-    const loadLiveEvents = () => {
-        // Mock data - in production this would come from Firebase/API
-        const mockEvents: LiveEvent[] = [
-            {
-                id: 'ans-2025',
-                name: 'Älvsjö Night Sprint',
-                location: 'Älvsjö, Stockholm',
-                date: '2025-12-02',
-                status: 'live',
-                activeRunners: 8,
-                totalRunners: 55,
-                classes: ['Lång', 'Mellan', 'Kort'],
-                organizer: 'OK Älvsjö-Örby',
-                speakerActive: true,
-            },
-            {
-                id: 'spring-cup',
-                name: 'Stockholm Spring Cup',
-                location: 'Nacka, Stockholm',
-                date: new Date().toISOString().split('T')[0],
-                status: 'live',
-                activeRunners: 23,
-                totalRunners: 120,
-                classes: ['H21', 'D21', 'H35', 'D35', 'Öppen'],
-                organizer: 'Nacka OK',
-                speakerActive: false,
-            },
-            {
-                id: 'training-run',
-                name: 'Onsdagsträning OK Linné',
-                location: 'Lunsen, Uppsala',
-                date: new Date().toISOString().split('T')[0],
-                status: 'live',
-                activeRunners: 12,
-                totalRunners: 12,
-                classes: ['Alla'],
-                organizer: 'OK Linné',
-            },
-            {
-                id: 'weekend-ol',
-                name: 'Helgsprint Göteborg',
-                location: 'Slottsskogen, Göteborg',
-                date: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
-                status: 'upcoming',
-                activeRunners: 0,
-                totalRunners: 85,
-                classes: ['Elite', 'Motionär'],
-                organizer: 'Göteborg-Majorna OK',
-            },
-        ];
-
-        setEvents(mockEvents);
-        setLoading(false);
-    };
 
     const filteredEvents = events.filter(e =>
         filter === 'live' ? e.status === 'live' : e.status === 'upcoming'

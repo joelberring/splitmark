@@ -83,9 +83,9 @@ export default function ActivityFeed({
                     <button
                         key={f.id}
                         onClick={() => onFilterChange(f.id as typeof filter)}
-                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${filter === f.id
-                                ? 'bg-emerald-500 text-white'
-                                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                        className={`px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${filter === f.id
+                            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30'
+                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
                             }`}
                     >
                         {f.label}
@@ -96,7 +96,7 @@ export default function ActivityFeed({
             {/* Activities */}
             {filteredActivities.length === 0 ? (
                 <div className="text-center py-12 px-4">
-                    <p className="text-gray-500 dark:text-gray-400">
+                    <p className="text-slate-500 uppercase tracking-wide text-sm font-bold">
                         Inga aktiviteter att visa
                     </p>
                 </div>
@@ -132,7 +132,7 @@ function ActivityCard({
     formatDate: (d: Date) => string;
 }) {
     return (
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+        <div className="bg-slate-900 border-b border-slate-800 mx-4 rounded-lg mb-3 overflow-hidden">
             {/* Header */}
             <div className="px-4 py-3 flex items-center gap-3">
                 {activity.userAvatar ? (
@@ -147,10 +147,10 @@ function ActivityCard({
                     </div>
                 )}
                 <div className="flex-1">
-                    <p className="font-semibold text-gray-900 dark:text-gray-100">
+                    <p className="font-semibold text-white">
                         {activity.userName}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-slate-500">
                         {formatDate(activity.date)}
                     </p>
                 </div>
@@ -159,7 +159,7 @@ function ActivityCard({
             {/* Map Preview */}
             {activity.mapPreviewUrl && (
                 <Link href={`/tracks/${activity.id}`}>
-                    <div className="aspect-video bg-gray-200 dark:bg-gray-700 relative">
+                    <div className="aspect-video bg-slate-800 relative">
                         <img
                             src={activity.mapPreviewUrl}
                             alt="Karta"
@@ -171,12 +171,12 @@ function ActivityCard({
 
             {/* Content */}
             <div className="px-4 py-3">
-                <Link href={`/events/${activity.eventId}`}>
-                    <h3 className="font-bold text-gray-900 dark:text-gray-100 hover:text-emerald-600">
+                <Link href={activity.eventId === 'ans-2025' ? '/test-event' : `/events/${activity.eventId}`}>
+                    <h3 className="font-bold text-white hover:text-emerald-400 transition-colors">
                         {activity.eventName}
                     </h3>
                 </Link>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-slate-400">
                     {activity.courseName}
                     {activity.className && ` · ${activity.className}`}
                 </p>
@@ -184,10 +184,10 @@ function ActivityCard({
                 {/* Stats */}
                 <div className="flex gap-6 mt-3 text-sm">
                     <div>
-                        <span className="text-gray-500 dark:text-gray-400">Tid</span>
-                        <p className={`font-semibold ${activity.resultStatus === 'mp'
-                                ? 'text-red-600'
-                                : 'text-gray-900 dark:text-gray-100'
+                        <span className="text-slate-500 text-xs uppercase tracking-wider">Tid</span>
+                        <p className={`font-semibold font-mono ${activity.resultStatus === 'mp'
+                            ? 'text-red-500'
+                            : 'text-white'
                             }`}>
                             {activity.resultStatus === 'mp'
                                 ? 'Felst.'
@@ -198,16 +198,16 @@ function ActivityCard({
                         </p>
                     </div>
                     <div>
-                        <span className="text-gray-500 dark:text-gray-400">Distans</span>
-                        <p className="font-semibold text-gray-900 dark:text-gray-100">
+                        <span className="text-slate-500 text-xs uppercase tracking-wider">Distans</span>
+                        <p className="font-semibold text-white font-mono">
                             {formatDistance(activity.distance)}
                         </p>
                     </div>
                     {activity.position && activity.totalInClass && (
                         <div>
-                            <span className="text-gray-500 dark:text-gray-400">Placering</span>
-                            <p className="font-semibold text-gray-900 dark:text-gray-100">
-                                {activity.position}/{activity.totalInClass}
+                            <span className="text-slate-500 text-xs uppercase tracking-wider">Placering</span>
+                            <p className="font-semibold text-white">
+                                <span className={activity.position <= 3 ? 'text-emerald-400' : ''}>{activity.position}</span>/{activity.totalInClass}
                             </p>
                         </div>
                     )}
@@ -215,22 +215,22 @@ function ActivityCard({
             </div>
 
             {/* Actions */}
-            <div className="px-4 py-2 border-t border-gray-100 dark:border-gray-700 flex items-center gap-4">
+            <div className="px-4 py-2 border-t border-slate-800 flex items-center gap-4">
                 <button
                     onClick={() => onKudos(activity.id)}
-                    className={`flex items-center gap-1 text-sm ${activity.hasKudoed
-                            ? 'text-emerald-600 font-semibold'
-                            : 'text-gray-500 dark:text-gray-400'
+                    className={`flex items-center gap-1.5 text-sm transition-all ${activity.hasKudoed
+                        ? 'text-emerald-400 font-semibold'
+                        : 'text-slate-500 hover:text-emerald-400'
                         }`}
                 >
-                    <span>{activity.hasKudoed ? '✓' : ''}</span>
+                    <span className="text-base">{activity.hasKudoed ? '👍' : '👍'}</span>
                     {activity.kudos} kudos
                 </button>
                 <Link
                     href={`/tracks/${activity.id}`}
-                    className="text-sm text-gray-500 dark:text-gray-400"
+                    className="text-sm text-slate-500 hover:text-white transition-colors"
                 >
-                    {activity.comments} kommentarer
+                    💬 {activity.comments} kommentarer
                 </Link>
             </div>
         </div>

@@ -14,6 +14,7 @@ import {
     MapTab,
     SpeakerTab,
     EventData,
+    saveEvent,
 } from './components';
 
 type TabId = 'overview' | 'classes' | 'entries' | 'lottning' | 'timing' | 'map' | 'participants' | 'speaker';
@@ -36,6 +37,8 @@ export default function EventManagePage() {
     const [event, setEvent] = useState<EventData | null>(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<TabId>('overview');
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editForm, setEditForm] = useState({ name: '', date: '', time: '', location: '' });
 
     useEffect(() => {
         const stored = localStorage.getItem('events');
@@ -48,10 +51,38 @@ export default function EventManagePage() {
                     classes: found.classes || [],
                     entries: found.entries || [],
                 });
+                setEditForm({
+                    name: found.name || '',
+                    date: found.date || '',
+                    time: found.time || '',
+                    location: found.location || '',
+                });
             }
         }
         setLoading(false);
     }, [eventId]);
+
+    const handleToggleStatus = () => {
+        if (!event) return;
+        const newStatus = event.status === 'active' ? 'draft' : 'active';
+        const updatedEvent = { ...event, status: newStatus };
+        setEvent(updatedEvent);
+        saveEvent(updatedEvent);
+    };
+
+    const handleSaveEdit = () => {
+        if (!event) return;
+        const updatedEvent = {
+            ...event,
+            name: editForm.name,
+            date: editForm.date,
+            time: editForm.time,
+            location: editForm.location,
+        };
+        setEvent(updatedEvent);
+        saveEvent(updatedEvent);
+        setShowEditModal(false);
+    };
 
     if (loading) {
         return (
@@ -89,7 +120,7 @@ export default function EventManagePage() {
                                     ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/50'
                                     : 'bg-slate-800 text-slate-400 border-slate-700'
                                     }`}>
-                                    {event.status === 'active' ? 'Pågår' : 'Planerad'}
+                                    {event.status === 'active' ? '🟢 Publicerad' : '📝 Utkast'}
                                 </span>
                             </h1>
                             <p className="text-slate-500 text-sm mt-1">
@@ -98,10 +129,22 @@ export default function EventManagePage() {
                             </p>
                         </div>
                         <div className="flex gap-3">
-                            <HelpButton topic="timing" />
-                            <button className="px-6 py-3 bg-emerald-600 text-white rounded-lg font-bold uppercase tracking-widest hover:bg-emerald-500 transition-colors">
-                                ▶ Starta Tidtagning
+                            <button
+                                onClick={() => setShowEditModal(true)}
+                                className="px-4 py-2 bg-slate-800 text-white rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-slate-700 transition-colors"
+                            >
+                                ✏️ Redigera
                             </button>
+                            <button
+                                onClick={handleToggleStatus}
+                                className={`px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-widest transition-colors ${event.status === 'active'
+                                        ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                                        : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                    }`}
+                            >
+                                {event.status === 'active' ? '⏸️ Avpublicera' : '🚀 Publicera'}
+                            </button>
+                            <HelpButton topic="timing" />
                         </div>
                     </div>
                 </div>
@@ -139,6 +182,83 @@ export default function EventManagePage() {
                 {activeTab === 'speaker' && <SpeakerTab event={event} />}
                 {activeTab === 'participants' && <ParticipantsTab event={event} setEvent={setEvent} />}
             </div>
+
+            {/* Edit Event Modal */}
+            {showEditModal && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-lg w-full p-6">
+                        <h3 className="text-lg font-bold text-white mb-4">Redigera tävling</h3>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                                    Namn
+                                </label>
+                                <input
+                                    type="text"
+                                    value={editForm.name}
+                                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                                    className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                                        Datum
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={editForm.date}
+                                        onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
+                                        className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                                        Tid
+                                    </label>
+                                    <input
+                                        type="time"
+                                        value={editForm.time}
+                                        onChange={(e) => setEditForm({ ...editForm, time: e.target.value })}
+                                        className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                                    Plats
+                                </label>
+                                <input
+                                    type="text"
+                                    value={editForm.location}
+                                    onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                                    placeholder="Arena, kommun"
+                                    className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => setShowEditModal(false)}
+                                className="flex-1 px-4 py-3 bg-slate-800 text-white rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-slate-700"
+                            >
+                                Avbryt
+                            </button>
+                            <button
+                                onClick={handleSaveEdit}
+                                className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-emerald-500"
+                            >
+                                Spara
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
+

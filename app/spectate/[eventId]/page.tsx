@@ -50,6 +50,8 @@ export default function SpectateEventPage() {
     const [showPanel, setShowPanel] = useState<'runners' | 'results' | 'speaker'>('runners');
     const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
     const [availableClasses, setAvailableClasses] = useState<string[]>([]);
+    const [eventName, setEventName] = useState('Laddar...');
+    const [organizer, setOrganizer] = useState('');
 
     // Initialize map
     useEffect(() => {
@@ -71,31 +73,79 @@ export default function SpectateEventPage() {
     }, []);
 
     // Mock data
+    // Load event data from Firestore
     useEffect(() => {
-        const colors = ['#10B981', '#EF4444', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899'];
-        const classes = ['H21', 'D21', 'H35', 'D35'];
-        setAvailableClasses(classes);
+        import('@/lib/firestore/events').then(({ getEvent, subscribeToEvents }) => {
+            // Initial fetch
+            getEvent(eventId).then(event => {
+                if (event) {
+                    processEventData(event);
+                }
+            });
 
-        const mockRunners: Runner[] = [
-            { id: '1', name: 'Anna Svensson', club: 'OK Linné', className: 'D21', position: { lat: 59.330, lng: 18.070 }, lastUpdate: new Date(), status: 'running', color: colors[0] },
-            { id: '2', name: 'Erik Johansson', club: 'IFK Lidingö', className: 'H21', position: { lat: 59.331, lng: 18.071 }, lastUpdate: new Date(), status: 'running', color: colors[1] },
-            { id: '3', name: 'Maria Lindberg', club: 'Nacka OK', className: 'D35', position: { lat: 59.329, lng: 18.068 }, lastUpdate: new Date(), status: 'running', color: colors[2] },
-            { id: '4', name: 'Johan Holm', club: 'Djurgårdens IF', className: 'H21', position: { lat: 59.332, lng: 18.072 }, lastUpdate: new Date(), status: 'running', color: colors[3] },
-        ];
-        setRunners(mockRunners);
+            // Subscribe to updates (using list subscription for now as we don't have single doc sub yet)
+            // Ideally we should add subscribeToEvent(id) in the service
+            const unsubscribe = subscribeToEvents((events) => {
+                const event = events.find(e => e.id === eventId);
+                if (event) {
+                    processEventData(event);
+                }
+            });
 
-        const mockResults: ResultEntry[] = [
-            { id: 'r1', name: 'Gustav Lindgren', club: 'IFK Lidingö', className: 'H21', time: '27:30', position: 1, timestamp: new Date(Date.now() - 60000) },
-            { id: 'r2', name: 'Sofia Nordin', club: 'OK Linné', className: 'D21', time: '29:15', position: 1, timestamp: new Date(Date.now() - 30000) },
-        ];
-        setResults(mockResults);
-
-        const mockComments: SpeakerComment[] = [
-            { id: 'c1', text: 'Välkommen till Älvsjö Night Sprint! Första löparna har startat.', timestamp: new Date(Date.now() - 300000) },
-            { id: 'c2', text: 'Gustav Lindgren från IFK Lidingö tar ledningen i H21 med tiden 27:30!', timestamp: new Date(Date.now() - 60000), highlight: true },
-        ];
-        setComments(mockComments);
+            return () => unsubscribe();
+        });
     }, [eventId]);
+
+    const processEventData = (event: any) => {
+        const colors = ['#10B981', '#EF4444', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899'];
+
+        // Update header info (using DOM manipulation for simplicity or state if refactored)
+        // For now just processing lists
+
+        setEventName(event.name);
+        setOrganizer(event.organizer || 'Arrangör');
+
+        if (event.classes) {
+            setAvailableClasses(event.classes.map((c: any) => c.name));
+        }
+
+        if (event.entries) {
+            const newRunners: Runner[] = event.entries
+                .filter((e: any) => e.status === 'started' || e.status === 'registered')
+                .map((e: any, idx: number) => ({
+                    id: e.id,
+                    name: e.name,
+                    club: e.club,
+                    className: e.className || e.classId || '',
+                    // Simulate position around event center (Stockholm)
+                    // In real app, this would come from a tracking sub-collection
+                    position: {
+                        lat: 59.3293 + (Math.random() - 0.5) * 0.01,
+                        lng: 18.0686 + (Math.random() - 0.5) * 0.01
+                    },
+                    lastUpdate: new Date(),
+                    status: e.status === 'started' ? 'running' : 'dnf', // map registered to dnf for visual distinctness? no, map logic only shows 'started' usually.
+                    // Let's treat 'started' as running.
+                    color: colors[idx % colors.length]
+                }))
+                .filter((r: Runner) => r.status === 'running' || true); // Keep all for list
+
+            setRunners(newRunners);
+
+            const newResults: ResultEntry[] = event.entries
+                .filter((e: any) => e.status === 'finished')
+                .map((e: any, idx: number) => ({
+                    id: e.id,
+                    name: e.name,
+                    club: e.club,
+                    className: e.className || e.classId || '',
+                    time: e.startTime ? '--:--' : '00:00', // Placeholder time calculation
+                    position: idx + 1,
+                    timestamp: new Date()
+                }));
+            setResults(newResults);
+        }
+    };
 
     // Update runner positions
     useEffect(() => {
@@ -175,8 +225,8 @@ export default function SpectateEventPage() {
                         ←
                     </Link>
                     <div>
-                        <h1 className="text-sm font-bold uppercase tracking-wider">Älvsjö Night Sprint</h1>
-                        <p className="text-xs text-slate-500">OK Älvsjö-Örby</p>
+                        <h1 className="text-sm font-bold uppercase tracking-wider">{eventName}</h1>
+                        <p className="text-xs text-slate-500">{organizer}</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -195,8 +245,8 @@ export default function SpectateEventPage() {
                         key={cls}
                         onClick={() => toggleClass(cls)}
                         className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider transition-colors ${selectedClasses.includes(cls) || selectedClasses.length === 0
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-slate-800 text-slate-500'
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-slate-800 text-slate-500'
                             }`}
                     >
                         {cls}
@@ -224,8 +274,8 @@ export default function SpectateEventPage() {
                                 key={tab.id}
                                 onClick={() => setShowPanel(tab.id as any)}
                                 className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${showPanel === tab.id
-                                        ? 'text-emerald-400 border-b-2 border-emerald-500'
-                                        : 'text-slate-500 hover:text-white'
+                                    ? 'text-emerald-400 border-b-2 border-emerald-500'
+                                    : 'text-slate-500 hover:text-white'
                                     }`}
                             >
                                 {tab.icon} {tab.label}
@@ -248,8 +298,8 @@ export default function SpectateEventPage() {
                                             setFollowing(following === runner.id ? null : runner.id);
                                         }}
                                         className={`w-full p-3 rounded-lg border-l-4 text-left transition-all ${selectedRunner === runner.id
-                                                ? 'bg-slate-800'
-                                                : 'bg-slate-800/50 hover:bg-slate-800'
+                                            ? 'bg-slate-800'
+                                            : 'bg-slate-800/50 hover:bg-slate-800'
                                             }`}
                                         style={{ borderColor: runner.color }}
                                     >
@@ -319,8 +369,8 @@ export default function SpectateEventPage() {
                                         <div
                                             key={comment.id}
                                             className={`p-3 rounded-lg ${comment.highlight
-                                                    ? 'bg-purple-900/30 border border-purple-700/50'
-                                                    : 'bg-slate-800/50'
+                                                ? 'bg-purple-900/30 border border-purple-700/50'
+                                                : 'bg-slate-800/50'
                                                 }`}
                                         >
                                             <p className={`text-sm ${comment.highlight ? 'text-purple-200' : 'text-slate-300'}`}>

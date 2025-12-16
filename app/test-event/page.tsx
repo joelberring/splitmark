@@ -245,50 +245,126 @@ export default function TestEventPage() {
                 )}
 
                 {/* Splits Tab */}
-                {activeTab === 'splits' && (
-                    <>
-                        <div className="mb-4 flex flex-wrap gap-2">
-                            {event.classes?.map((cls) => (
-                                <button key={cls.id} onClick={() => setSelectedClass(cls.id)}
-                                    className={`px-3 py-1.5 rounded font-bold text-xs uppercase tracking-widest ${selectedClass === cls.id ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
-                                    {cls.name}
-                                </button>
-                            ))}
-                        </div>
-                        <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead className="bg-slate-800/50">
-                                    <tr>
-                                        <th className="px-2 py-2 text-left text-[10px] font-bold text-slate-400 sticky left-0 bg-slate-800 z-10">Namn</th>
-                                        {selectedClassResults[0]?.splits.map((s, i) => <th key={i} className="px-2 py-2 text-center text-[10px] font-bold text-slate-400 min-w-[50px]">{s.controlCode}</th>)}
-                                        <th className="px-2 py-2 text-right text-[10px] font-bold text-slate-400">Mål</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-800">
-                                    {selectedClassResults.slice(0, 15).map((r) => {
-                                        let prev = 0;
-                                        return (
-                                            <tr key={r.entryId} className="hover:bg-slate-800/50">
-                                                <td className="px-2 py-1.5 font-bold text-white sticky left-0 bg-slate-900 border-r border-slate-800 z-10 whitespace-nowrap">
-                                                    <span className="text-slate-500 mr-1">{r.position}.</span>{r.name.split(' ')[0]}
-                                                </td>
-                                                {r.splits.map((s, i) => {
-                                                    const leg = s.time - prev; prev = s.time; return (
-                                                        <td key={i} className="px-1 py-1.5 text-center">
-                                                            <div className="font-mono text-white text-[11px]">{formatTime(s.time)}</div>
-                                                            <div className="font-mono text-slate-500 text-[9px]">{formatTime(leg)}</div>
-                                                        </td>
-                                                    );
-                                                })}
-                                                <td className="px-2 py-1.5 text-right font-mono text-white">{formatTime(r.time)}</td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    </>
-                )}
+                {activeTab === 'splits' && (() => {
+                    // Calculate best leg times and cumulative rankings for each control
+                    const numControls = selectedClassResults[0]?.splits.length || 0;
+
+                    // For each control, calculate leg times for all runners
+                    const legRankings: { [controlIdx: number]: { [runnerIdx: number]: { legRank: number; cumRank: number } } } = {};
+
+                    for (let controlIdx = 0; controlIdx < numControls; controlIdx++) {
+                        // Get leg times for all runners at this control
+                        const legTimes = selectedClassResults.map((r, runnerIdx) => {
+                            const split = r.splits[controlIdx];
+                            const prevTime = controlIdx > 0 ? r.splits[controlIdx - 1]?.time || 0 : 0;
+                            const legTime = split ? split.time - prevTime : 999999;
+                            const cumTime = split?.time || 999999;
+                            return { runnerIdx, legTime, cumTime };
+                        });
+
+                        // Sort by leg time to get leg rankings
+                        const sortedByLeg = [...legTimes].sort((a, b) => a.legTime - b.legTime);
+                        const legRankMap = new Map<number, number>();
+                        sortedByLeg.forEach((item, idx) => {
+                            if (item.legTime < 999999) legRankMap.set(item.runnerIdx, idx + 1);
+                        });
+
+                        // Sort by cumulative time to get current position
+                        const sortedByCum = [...legTimes].sort((a, b) => a.cumTime - b.cumTime);
+                        const cumRankMap = new Map<number, number>();
+                        sortedByCum.forEach((item, idx) => {
+                            if (item.cumTime < 999999) cumRankMap.set(item.runnerIdx, idx + 1);
+                        });
+
+                        legRankings[controlIdx] = {};
+                        selectedClassResults.forEach((_, runnerIdx) => {
+                            legRankings[controlIdx][runnerIdx] = {
+                                legRank: legRankMap.get(runnerIdx) || 999,
+                                cumRank: cumRankMap.get(runnerIdx) || 999,
+                            };
+                        });
+                    }
+
+                    const getLegColor = (rank: number) => {
+                        if (rank === 1) return 'text-amber-400 font-bold'; // Gold
+                        if (rank === 2) return 'text-slate-300'; // Silver
+                        if (rank === 3) return 'text-amber-600'; // Bronze
+                        return 'text-slate-500';
+                    };
+
+                    const getCumBg = (rank: number) => {
+                        if (rank === 1) return 'bg-emerald-900/40';
+                        if (rank === 2) return 'bg-slate-700/30';
+                        if (rank === 3) return 'bg-amber-900/20';
+                        return '';
+                    };
+
+                    return (
+                        <>
+                            <div className="mb-4 flex flex-wrap gap-2">
+                                {event.classes?.map((cls) => (
+                                    <button key={cls.id} onClick={() => setSelectedClass(cls.id)}
+                                        className={`px-3 py-1.5 rounded font-bold text-xs uppercase tracking-widest ${selectedClass === cls.id ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
+                                        {cls.name}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Legend */}
+                            <div className="mb-3 flex items-center gap-4 text-xs">
+                                <span className="text-slate-500">Sträcktid:</span>
+                                <span className="text-amber-400">🥇 1:a</span>
+                                <span className="text-slate-300">🥈 2:a</span>
+                                <span className="text-amber-600">🥉 3:a</span>
+                                <span className="text-slate-600 ml-4">|</span>
+                                <span className="text-slate-500 ml-2">Bakgrund = ledande vid kontrollen</span>
+                            </div>
+
+                            <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-slate-800/50">
+                                        <tr>
+                                            <th className="px-2 py-2 text-left text-[10px] font-bold text-slate-400 sticky left-0 bg-slate-800 z-10">Namn</th>
+                                            {selectedClassResults[0]?.splits.map((s, i) => <th key={i} className="px-2 py-2 text-center text-[10px] font-bold text-slate-400 min-w-[60px]">{s.controlCode}</th>)}
+                                            <th className="px-2 py-2 text-right text-[10px] font-bold text-slate-400">Mål</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-800">
+                                        {selectedClassResults.slice(0, 20).map((r, runnerIdx) => {
+                                            let prev = 0;
+                                            return (
+                                                <tr key={r.entryId} className="hover:bg-slate-800/50">
+                                                    <td className="px-2 py-1.5 font-bold text-white sticky left-0 bg-slate-900 border-r border-slate-800 z-10 whitespace-nowrap">
+                                                        <span className={`mr-1 ${r.position === 1 ? 'text-amber-400' : r.position === 2 ? 'text-slate-400' : r.position === 3 ? 'text-amber-600' : 'text-slate-500'}`}>{r.position}.</span>
+                                                        {r.name.split(' ')[0]}
+                                                    </td>
+                                                    {r.splits.map((s, controlIdx) => {
+                                                        const leg = s.time - prev;
+                                                        prev = s.time;
+                                                        const ranks = legRankings[controlIdx]?.[runnerIdx] || { legRank: 999, cumRank: 999 };
+                                                        const legColor = getLegColor(ranks.legRank);
+                                                        const cumBg = getCumBg(ranks.cumRank);
+
+                                                        return (
+                                                            <td key={controlIdx} className={`px-1 py-1.5 text-center ${cumBg}`}>
+                                                                <div className="font-mono text-white text-[11px]">{formatTime(s.time)}</div>
+                                                                <div className={`font-mono text-[10px] ${legColor}`}>
+                                                                    {formatTime(leg)}
+                                                                    {ranks.legRank <= 3 && <span className="ml-0.5">({ranks.legRank})</span>}
+                                                                </div>
+                                                            </td>
+                                                        );
+                                                    })}
+                                                    <td className="px-2 py-1.5 text-right font-mono text-white">{formatTime(r.time)}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
+                    );
+                })()}
 
                 {/* Map Tab - Livelox style with zoom */}
                 {activeTab === 'map' && (
