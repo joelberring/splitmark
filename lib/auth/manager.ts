@@ -6,8 +6,7 @@
 import {
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
-    signInWithRedirect,
-    getRedirectResult,
+    signInWithPopup,
     GoogleAuthProvider,
     signOut as firebaseSignOut,
     onAuthStateChanged,
@@ -60,15 +59,6 @@ export class AuthManager {
                 }
             });
 
-            // Handle redirect result (for Google sign-in)
-            getRedirectResult(auth).then(async (result) => {
-                if (result?.user) {
-                    await this.handleUserSignIn(result.user);
-                }
-            }).catch((error) => {
-                console.error('Redirect result error:', error);
-            });
-
             // Restore offline auth state
             this.restoreOfflineAuthState();
         }
@@ -114,13 +104,10 @@ export class AuthManager {
     async signInWithGoogle(): Promise<void> {
         try {
             const provider = new GoogleAuthProvider();
-            // Request additional scopes if needed
             provider.addScope('profile');
             provider.addScope('email');
 
-            // Use redirect instead of popup for better cross-domain support
-            await signInWithRedirect(auth, provider);
-            // Note: User will be redirected, result is handled in constructor via getRedirectResult
+            await signInWithPopup(auth, provider);
         } catch (error: any) {
             throw this.handleAuthError(error);
         }
