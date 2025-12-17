@@ -94,40 +94,41 @@ export default function MemberProfilePage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-                <div className="text-gray-500">Laddar profil...</div>
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                <div className="text-slate-500 font-bold uppercase tracking-widest text-xs animate-pulse">Laddar profil...</div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="min-h-screen bg-slate-950 text-white">
             <div className="max-w-4xl mx-auto px-4 py-8">
                 <Link
                     href="/"
-                    className="text-sm text-gray-500 hover:text-emerald-600 mb-4 inline-block"
+                    className="text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-emerald-400 mb-6 inline-block transition-colors"
                 >
                     ← Tillbaka
                 </Link>
 
                 {/* Profile Header */}
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 mb-8">
-                    <div className="flex items-center gap-6">
-                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+                <div className="bg-slate-900 rounded-2xl border border-slate-800 p-8 mb-8 shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-3xl rounded-full -mr-20 -mt-20"></div>
+                    <div className="flex items-center gap-8 relative z-10">
+                        <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-slate-950 text-4xl font-black shadow-xl shadow-emerald-900/20">
                             {user?.displayName?.[0] || userId[0]?.toUpperCase() || '?'}
                         </div>
                         <div>
-                            <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                            <h1 className="text-4xl font-black uppercase tracking-tight text-white mb-1">
                                 {user?.displayName || `Användare ${userId}`}
                             </h1>
                             {user?.email && (
-                                <p className="text-gray-500">{user.email}</p>
+                                <p className="text-slate-400 font-medium text-lg">{user.email}</p>
                             )}
-                            <div className="flex gap-2 mt-2">
-                                <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-full font-semibold">
+                            <div className="flex gap-2 mt-4">
+                                <span className="px-3 py-1 bg-emerald-500/10 text-emerald-500 text-[10px] rounded border border-emerald-500/20 font-black uppercase tracking-widest">
                                     Medlem
                                 </span>
-                                <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+                                <span className="px-3 py-1 bg-slate-800 text-slate-400 text-[10px] rounded border border-slate-700 font-black uppercase tracking-widest">
                                     {results.length} resultat
                                 </span>
                             </div>
@@ -136,69 +137,73 @@ export default function MemberProfilePage() {
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-3 gap-4 mb-8">
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 text-center">
-                        <div className="text-3xl font-bold text-emerald-600">
+                <div className="grid grid-cols-3 gap-6 mb-8">
+                    <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 text-center shadow-xl">
+                        <div className="text-4xl font-black text-white mb-1">
                             {results.length}
                         </div>
-                        <div className="text-sm text-gray-500">Tävlingar</div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tävlingar</div>
                     </div>
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 text-center">
-                        <div className="text-3xl font-bold text-yellow-500">
+                    <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 text-center shadow-xl relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-amber-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="text-4xl font-black text-amber-500 mb-1 relative z-10">
                             {results.filter(r => r.position === 1).length}
                         </div>
-                        <div className="text-sm text-gray-500">Segrar</div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 relative z-10">Segrar</div>
                     </div>
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 text-center">
-                        <div className="text-3xl font-bold text-gray-800 dark:text-gray-100">
+                    <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 text-center shadow-xl">
+                        <div className="text-4xl font-black text-slate-300 mb-1">
                             {results.filter(r => r.position <= 3 && r.position > 0).length}
                         </div>
-                        <div className="text-sm text-gray-500">Pallplatser</div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Pallplatser</div>
                     </div>
                 </div>
 
                 {/* Results History */}
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
-                    <div className="px-6 py-4 border-b dark:border-gray-700">
-                        <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">
-                            📊 Resultathistorik
+                <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl overflow-hidden">
+                    <div className="px-6 py-5 border-b border-slate-800 bg-slate-900/50">
+                        <h2 className="text-xl font-black uppercase tracking-tight text-white flex items-center gap-2">
+                            <span className="text-emerald-500">📊</span> Resultathistorik
                         </h2>
                     </div>
 
                     {results.length === 0 ? (
-                        <div className="p-8 text-center text-gray-500">
-                            Inga resultat hittades för denna användare
+                        <div className="p-16 text-center">
+                            <div className="text-5xl mb-4 opacity-20 filter grayscale">🏃‍♂️</div>
+                            <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">
+                                Inga resultat ännu
+                            </p>
                         </div>
                     ) : (
-                        <div className="divide-y dark:divide-gray-700">
+                        <div className="divide-y divide-slate-800/50">
                             {results.map((result, idx) => (
                                 <Link
                                     key={idx}
                                     href={`/events/${result.eventId}`}
-                                    className="block px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                                    className="block px-6 py-5 hover:bg-slate-800 transition-colors group"
                                 >
-                                    <div className="flex items-center gap-4">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${result.position === 1 ? 'bg-yellow-400 text-yellow-900' :
-                                                result.position === 2 ? 'bg-gray-300 text-gray-700' :
-                                                    result.position === 3 ? 'bg-orange-400 text-orange-900' :
-                                                        'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                                    <div className="flex items-center gap-6">
+                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black text-sm shadow-inner ${result.position === 1 ? 'bg-amber-500 text-slate-950' :
+                                            result.position === 2 ? 'bg-slate-400 text-slate-950' :
+                                                result.position === 3 ? 'bg-amber-700 text-slate-950' :
+                                                    'bg-slate-800 text-slate-500'
                                             }`}>
                                             {result.position || '-'}
                                         </div>
                                         <div className="flex-1">
-                                            <div className="font-semibold text-gray-800 dark:text-gray-100">
+                                            <div className="font-bold text-white group-hover:text-emerald-400 transition-colors text-lg">
                                                 {result.eventName}
                                             </div>
-                                            <div className="text-sm text-gray-500">
-                                                {result.eventDate} • {result.className}
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-0.5">
+                                                {new Date(result.eventDate).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric', year: 'numeric' })} • {result.className}
                                             </div>
                                         </div>
                                         <div className="text-right">
-                                            <div className="font-mono font-bold text-gray-800 dark:text-gray-100">
+                                            <div className="font-mono font-black text-xl text-white">
                                                 {formatTime(result.time)}
                                             </div>
                                             {result.status !== 'OK' && result.status !== 'finished' && (
-                                                <div className="text-red-500 text-sm">{result.status}</div>
+                                                <div className="text-red-500 text-[10px] font-black uppercase tracking-widest mt-0.5">{result.status}</div>
                                             )}
                                         </div>
                                     </div>

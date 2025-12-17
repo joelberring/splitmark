@@ -13,11 +13,12 @@ import {
     ParticipantsTab,
     MapTab,
     SpeakerTab,
+    SafetyTab,
     EventData,
     saveEvent,
 } from './components';
 
-type TabId = 'overview' | 'classes' | 'entries' | 'lottning' | 'timing' | 'map' | 'participants' | 'speaker';
+type TabId = 'overview' | 'classes' | 'entries' | 'lottning' | 'timing' | 'safety' | 'map' | 'participants' | 'speaker';
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
     { id: 'overview', label: 'Översikt', icon: '📊' },
@@ -25,6 +26,7 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
     { id: 'entries', label: 'Anmälningar', icon: '📝' },
     { id: 'lottning', label: 'Lottning', icon: '🎲' },
     { id: 'timing', label: 'Tidtagning', icon: '⏱️' },
+    { id: 'safety', label: 'Säkerhet', icon: '🚩' },
     { id: 'map', label: 'Karta', icon: '🎯' },
     { id: 'speaker', label: 'Speaker', icon: '🎙️' },
     { id: 'participants', label: 'Deltagarläge', icon: '📱' },
@@ -138,8 +140,8 @@ export default function EventManagePage() {
                             <button
                                 onClick={handleToggleStatus}
                                 className={`px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-widest transition-colors ${event.status === 'active'
-                                        ? 'bg-amber-600 hover:bg-amber-500 text-white'
-                                        : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                    ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                                    : 'bg-emerald-600 hover:bg-emerald-500 text-white'
                                     }`}
                             >
                                 {event.status === 'active' ? '⏸️ Avpublicera' : '🚀 Publicera'}
@@ -176,8 +178,9 @@ export default function EventManagePage() {
                 {activeTab === 'overview' && <OverviewTab event={event} />}
                 {activeTab === 'classes' && <ClassesTab event={event} setEvent={setEvent} />}
                 {activeTab === 'entries' && <EntriesTab event={event} setEvent={setEvent} />}
-                {activeTab === 'lottning' && <LottningTab event={event} />}
-                {activeTab === 'timing' && <TimingTab event={event} />}
+                {activeTab === 'lottning' && <LottningTab event={event} setEvent={setEvent} />}
+                {activeTab === 'timing' && <TimingTab event={event} setEvent={setEvent} />}
+                {activeTab === 'safety' && <SafetyTab event={event} setEvent={setEvent} />}
                 {activeTab === 'map' && <MapTab event={event} eventId={eventId} setEvent={setEvent} />}
                 {activeTab === 'speaker' && <SpeakerTab event={event} />}
                 {activeTab === 'participants' && <ParticipantsTab event={event} setEvent={setEvent} />}

@@ -24,7 +24,78 @@ export default function EventDetailsPage() {
         loadEvent();
     }, [eventId]);
 
-    const loadEvent = () => {
+    const loadEvent = async () => {
+        // Check if this is the test event with full results
+        if (eventId === 'ans-2025') {
+            try {
+                const res = await fetch('/api/test-event');
+                const data = await res.json();
+
+                if (data.success && data.data.resultat) {
+                    // Parse the full results using parseIOFResultList
+                    const { parseIOFResultList, parseIOFCourseData } = await import('@/lib/import/iofXmlImport');
+                    const parsed = parseIOFResultList(data.data.resultat);
+
+                    // Parse course data if available
+                    let courses: any[] = [];
+                    let controls: any[] = [];
+                    if (data.data.courseData) {
+                        const courseResult = parseIOFCourseData(data.data.courseData);
+                        courses = courseResult.courses;
+                        controls = courseResult.controls;
+                    }
+
+                    // Build full event with all results
+                    const fullEvent: StoredEvent = {
+                        id: 'ans-2025',
+                        name: data.eventName || 'Älvsjö Night Sprint',
+                        date: data.eventDate || '2025-12-02',
+                        time: '17:30',
+                        location: 'Älvsjö, Stockholm',
+                        status: 'completed',
+                        classification: 'club',
+                        classes: parsed.classes?.map((c: any) => ({
+                            id: c.id,
+                            name: c.name,
+                            entryCount: c.entryCount || 0,
+                        })) || [],
+                        entries: parsed.results?.map((r: any) => ({
+                            id: r.entryId,
+                            firstName: r.name.split(' ')[0],
+                            lastName: r.name.split(' ').slice(1).join(' '),
+                            club: r.club,
+                            classId: r.classId,
+                            className: r.className,
+                            status: r.status === 'OK' ? 'finished' : r.status?.toLowerCase(),
+                            time: r.time,
+                            position: r.position,
+                            splitTimes: r.splits?.map((s: any) => ({
+                                controlCode: s.controlCode,
+                                time: s.time,
+                            })),
+                        })) || [],
+                        courses: courses.map((c: any) => ({
+                            id: c.id,
+                            name: c.name,
+                            length: c.length || 0,
+                            controls: c.controls || [],
+                        })),
+                        map: {
+                            imageUrl: '/test-map.jpg',
+                            name: 'Älvsjö Night Sprint karta',
+                        },
+                    };
+
+                    setEvent(fullEvent);
+                    setLoading(false);
+                    return;
+                }
+            } catch (err) {
+                console.error('Failed to load test event:', err);
+            }
+        }
+
+        // Fallback to localStorage
         const stored = localStorage.getItem('events');
         if (stored) {
             const events = JSON.parse(stored);
@@ -46,13 +117,13 @@ export default function EventDetailsPage() {
 
     if (!event) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+            <div className="min-h-screen flex items-center justify-center bg-slate-950">
                 <div className="text-center">
-                    <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-4">
-                        Event not found
+                    <h2 className="text-2xl font-bold text-white mb-4">
+                        Tävlingen hittades inte
                     </h2>
-                    <Link href="/events" className="text-emerald-600 hover:underline">
-                        Back to events
+                    <Link href="/events" className="text-emerald-500 hover:underline">
+                        Tillbaka till tävlingar
                     </Link>
                 </div>
             </div>
@@ -69,6 +140,44 @@ export default function EventDetailsPage() {
 
     return (
         <div className="min-h-screen bg-slate-950 text-white">
+            <style jsx global>{`
+                @media print {
+                    header, 
+                    nav,
+                    footer,
+                    .no-print,
+                    button:not(.print-visible) {
+                        display: none !important;
+                    }
+                    .min-h-screen {
+                        background: white !important;
+                        color: black !important;
+                    }
+                    .bg-slate-950, .bg-slate-900, .bg-slate-800 {
+                        background: white !important;
+                        color: black !important;
+                        border-color: #eee !important;
+                    }
+                    .text-white, .text-slate-200, .text-slate-300, .text-slate-400 {
+                        color: black !important;
+                    }
+                    .text-emerald-400, .text-emerald-500 {
+                        color: #10b981 !important;
+                        -webkit-print-color-adjust: exact;
+                    }
+                    .max-w-7xl {
+                        max-width: none !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                    }
+                    .shadow-lg, .shadow-sm, .shadow-2xl {
+                        box-shadow: none !important;
+                    }
+                    tr, div {
+                        page-break-inside: avoid;
+                    }
+                }
+            `}</style>
             {/* Header */}
             <header className="bg-slate-900 shadow-lg border-b border-slate-800 relative z-10">
                 <div className="max-w-7xl mx-auto px-6 py-8">
@@ -178,6 +287,12 @@ export default function EventDetailsPage() {
                             onClick={() => setActiveTab('chat')}
                             label="💬 Chat"
                         />
+                        <button
+                            onClick={() => window.print()}
+                            className="ml-auto pb-4 px-3 text-slate-500 hover:text-white font-bold text-xs uppercase tracking-widest no-print"
+                        >
+                            🖨️ Skriv ut
+                        </button>
                     </nav>
                 </div>
             </header>

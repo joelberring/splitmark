@@ -12,6 +12,8 @@ export interface EventData {
     status: string;
     classes: EventClass[];
     entries: Entry[];
+    courses?: any[];
+    ppenControls?: any[];
 }
 
 export interface EventClass {
@@ -31,7 +33,10 @@ export interface Entry {
     className?: string;
     siCard?: string;
     startTime?: string;
-    status: 'registered' | 'started' | 'finished' | 'dns' | 'dnf';
+    finishTime?: string;
+    resultTime?: string;
+    status: 'registered' | 'started' | 'finished' | 'dns' | 'dnf' | 'mp';
+    punches?: { code: string; time: string }[];
 }
 
 export function saveEvent(event: EventData) {
@@ -50,6 +55,37 @@ export function saveEvent(event: EventData) {
         }
         localStorage.setItem('events', JSON.stringify(events));
     });
+}
+export function calculateResultTime(start: string, finish: string): string {
+    const [sH, sM] = start.split(':').map(Number);
+    const [fH, fM] = finish.split(':').map(Number);
+
+    let totalSeconds = ((fH * 3600) + (fM * 60)) - ((sH * 3600) + (sM * 60));
+    if (totalSeconds < 0) totalSeconds += 24 * 3600; // Handle midnight wrap
+
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+
+    if (h > 0) return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+export function checkMP(courseControls: string[], punches: { code: string }[]): boolean {
+    if (!courseControls || courseControls.length === 0) return false;
+
+    let courseIdx = 0;
+    // Basic orienteering rule: controls must be visited in order.
+    // However, some systems are more lenient. 
+    // Here we check if all required codes were visited in the correct sequence.
+    for (const punch of punches) {
+        if (punch.code === courseControls[courseIdx]) {
+            courseIdx++;
+        }
+        if (courseIdx === courseControls.length) return false; // All found!
+    }
+
+    return courseIdx < courseControls.length; // True if some controls were missed
 }
 
 // Purple Pen XML parser

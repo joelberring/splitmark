@@ -85,19 +85,19 @@ export default function RacePage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-emerald-400"></div>
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-emerald-500"></div>
             </div>
         );
     }
 
     if (!event) {
         return (
-            <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">
                 <div className="text-center">
-                    <div className="text-6xl mb-4">❓</div>
-                    <h1 className="text-2xl font-bold mb-2">Tävling hittades inte</h1>
-                    <Link href="/events" className="text-emerald-400 hover:underline">
+                    <div className="text-6xl mb-6 opacity-20">❓</div>
+                    <h1 className="text-2xl font-black uppercase tracking-tight mb-2">Tävling hittades inte</h1>
+                    <Link href="/events" className="text-emerald-400 font-bold uppercase tracking-widest text-xs hover:underline">
                         Tillbaka till tävlingar
                     </Link>
                 </div>
@@ -107,14 +107,14 @@ export default function RacePage() {
 
     if (!participant) {
         return (
-            <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">
-                <div className="text-center">
-                    <div className="text-6xl mb-4">🏃</div>
-                    <h1 className="text-2xl font-bold mb-2">Du är inte anmäld</h1>
-                    <p className="text-gray-400 mb-4">
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">
+                <div className="text-center p-8">
+                    <div className="text-6xl mb-6 opacity-20">🏃</div>
+                    <h1 className="text-2xl font-black uppercase tracking-tight mb-2">Du är inte anmäld</h1>
+                    <p className="text-slate-500 font-medium mb-8">
                         Du måste vara anmäld för att använda deltagarläget
                     </p>
-                    <Link href={`/events/${eventId}`} className="text-emerald-400 hover:underline">
+                    <Link href={`/events/${eventId}`} className="inline-block px-8 py-4 bg-emerald-600 text-white rounded-xl font-black uppercase tracking-widest text-xs hover:bg-emerald-500 transition-all">
                         Tillbaka till tävlingen
                     </Link>
                 </div>
@@ -210,25 +210,28 @@ function BeforeStartView({
         .slice(0, 10);
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white">
+        <div className="min-h-screen bg-slate-950 text-white">
             {/* Header */}
-            <header className="bg-black/30 backdrop-blur-sm sticky top-0 z-10">
-                <div className="max-w-lg mx-auto px-4 py-4 flex items-center justify-between">
+            <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40 backdrop-blur-md bg-opacity-80">
+                <div className="max-w-lg mx-auto px-6 py-4 flex items-center justify-between">
                     <div>
-                        <h1 className="font-bold text-lg">{event.name}</h1>
-                        <p className="text-sm text-gray-400">{participant.className}</p>
+                        <h1 className="font-black uppercase tracking-tight text-lg leading-tight">{event.name}</h1>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500">{participant.className}</p>
                     </div>
-                    <div className="text-right text-sm text-gray-400">
-                        {currentTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
+                    <div className="text-right">
+                        <div className="font-mono font-black text-white">
+                            {currentTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
                     </div>
                 </div>
             </header>
 
             <main className="max-w-lg mx-auto px-4 py-8 space-y-6">
                 {/* My Start Time */}
-                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 text-center">
-                    <p className="text-sm text-gray-400 mb-2">Din starttid</p>
-                    <div className="text-5xl font-mono font-bold text-emerald-400 mb-4">
+                <div className="bg-slate-900 rounded-3xl border border-slate-800 p-8 text-center shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent opacity-50"></div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Din starttid</p>
+                    <div className="text-6xl font-mono font-black text-white mb-6 tracking-tighter">
                         {startTime
                             ? startTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
                             : '--:--:--'
@@ -236,14 +239,16 @@ function BeforeStartView({
                     </div>
 
                     {timeToStart && timeToStart > 0 && (
-                        <div className="text-xl">
-                            <span className="text-gray-400">Startar om </span>
-                            <CountdownDisplay milliseconds={timeToStart} />
+                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 rounded-full border border-slate-700">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Startar om</span>
+                            <div className="font-mono font-black text-emerald-400">
+                                <CountdownDisplay milliseconds={timeToStart} />
+                            </div>
                         </div>
                     )}
 
                     {timeToStart && timeToStart <= 0 && !participant.actualStartTime && (
-                        <div className="text-yellow-400 animate-pulse">
+                        <div className="text-amber-500 font-black uppercase tracking-widest text-xs animate-pulse">
                             Din starttid har passerat!
                         </div>
                     )}
@@ -253,15 +258,15 @@ function BeforeStartView({
                 {settings.requireCheckin && !participant.isCheckedIn && (
                     <button
                         onClick={handleCheckIn}
-                        className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 rounded-xl font-bold text-lg transition-colors"
+                        className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-lg shadow-emerald-900/40"
                     >
-                        ✓ Jag kommer starta
+                        ✓ Bekräfta start
                     </button>
                 )}
 
                 {participant.isCheckedIn && (
-                    <div className="bg-emerald-500/20 border border-emerald-500/50 rounded-xl p-4 text-center">
-                        <span className="text-emerald-400">✓ Du är incheckat</span>
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 text-center">
+                        <span className="text-emerald-500 font-black uppercase tracking-widest text-[10px]">✓ Du är incheckad</span>
                     </div>
                 )}
 
@@ -269,7 +274,7 @@ function BeforeStartView({
                 {settings.allowManualStart && timeToStart && timeToStart <= settings.manualStartWindowMinutes * 60 * 1000 && (
                     <button
                         onClick={handleManualStart}
-                        className="w-full py-4 bg-blue-500 hover:bg-blue-600 rounded-xl font-bold text-lg transition-colors"
+                        className="w-full py-5 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-lg shadow-blue-900/40"
                     >
                         🏃 Starta nu
                     </button>
@@ -277,32 +282,32 @@ function BeforeStartView({
 
                 {/* Start Location */}
                 {settings.showStartLocation && event.startLocation && (
-                    <div className="bg-white/5 rounded-xl p-4">
-                        <h3 className="text-sm text-gray-400 mb-2">📍 Startplats</h3>
-                        <p className="font-semibold">{event.startLocation.name}</p>
+                    <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 whitespace-pre-wrap">📍 Startplats</h3>
+                        <p className="font-bold text-white text-lg">{event.startLocation.name}</p>
                         {event.startLocation.description && (
-                            <p className="text-sm text-gray-400">{event.startLocation.description}</p>
+                            <p className="text-sm text-slate-400 mt-1">{event.startLocation.description}</p>
                         )}
                     </div>
                 )}
 
                 {/* Club Mates */}
                 {settings.showClubMates && clubMates.length > 0 && (
-                    <div className="bg-white/5 rounded-xl p-4">
-                        <h3 className="text-sm text-gray-400 mb-3">👥 Dina klubbkompisar</h3>
-                        <div className="space-y-2">
+                    <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4 whitespace-pre-wrap">👥 Dina klubbkompisar</h3>
+                        <div className="space-y-1">
                             {clubMates.map((mate: Entry) => (
-                                <div key={mate.id} className="flex items-center justify-between py-2 border-b border-white/10 last:border-0">
+                                <div key={mate.id} className="flex items-center justify-between py-3 border-b border-slate-800/50 last:border-0 group">
                                     <div>
-                                        <span className="font-semibold">{mate.firstName}</span>
-                                        <span className="text-gray-400 text-sm ml-2">{mate.className}</span>
+                                        <div className="font-bold text-white group-hover:text-emerald-400 transition-colors">{mate.firstName}</div>
+                                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">{mate.className}</div>
                                     </div>
-                                    <span className="font-mono text-sm">
+                                    <div className="font-mono font-black text-slate-300">
                                         {mate.startTime
                                             ? new Date(mate.startTime).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })
                                             : '-'
                                         }
-                                    </span>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -310,10 +315,10 @@ function BeforeStartView({
                 )}
 
                 {/* My Info */}
-                <div className="bg-white/5 rounded-xl p-4 text-center text-sm text-gray-400">
-                    <p>{participant.firstName} {participant.lastName}</p>
-                    <p>{participant.clubName}</p>
-                    {participant.siCard && <p className="font-mono">SI: {participant.siCard}</p>}
+                <div className="bg-slate-900/50 rounded-2xl border border-slate-800/50 p-6 text-center">
+                    <div className="text-white font-black uppercase tracking-tight text-lg">{participant.firstName} {participant.lastName}</div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-1">{participant.clubName}</div>
+                    {participant.siCard && <div className="font-mono font-black text-emerald-500/50 mt-4 text-xs">SI-NUMMER: {participant.siCard}</div>}
                 </div>
             </main>
         </div>
@@ -341,37 +346,47 @@ function RunningView({
         : 0;
 
     return (
-        <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-8">
+        <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 relative overflow-hidden">
+            {/* Ambient Background Glow */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-emerald-500/5 blur-[120px] rounded-full pointer-events-none"></div>
+
             {/* Timer */}
-            <div className="text-center mb-12">
-                <div className="text-7xl font-mono font-bold text-emerald-400 mb-4">
+            <div className="text-center mb-16 relative z-10">
+                <div className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-500 mb-6 animate-pulse">Running</div>
+                <div className="text-8xl md:text-9xl font-mono font-black text-white tracking-tighter sm:tabular-nums">
                     {formatElapsedTime(elapsed)}
                 </div>
             </div>
 
             {/* Minimal Info */}
-            <div className="text-center space-y-2 text-gray-400">
-                <p className="text-2xl font-bold text-white">
+            <div className="text-center space-y-2 relative z-10">
+                <p className="text-3xl font-black uppercase tracking-tight text-white">
                     {participant.firstName} {participant.lastName}
                 </p>
-                <p>{participant.clubName}</p>
-                <div className="flex gap-6 justify-center mt-4 text-sm">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{participant.clubName}</p>
+
+                <div className="flex gap-8 justify-center mt-12">
                     {participant.siCard && (
-                        <div>
-                            <span className="text-gray-500">SI:</span> {participant.siCard}
+                        <div className="text-center">
+                            <span className="block text-[8px] font-black uppercase tracking-widest text-slate-600 mb-1">SI-Card</span>
+                            <span className="font-mono font-bold text-slate-400">{participant.siCard}</span>
                         </div>
                     )}
                     {participant.bibNumber && (
-                        <div>
-                            <span className="text-gray-500">Nr:</span> {participant.bibNumber}
+                        <div className="text-center">
+                            <span className="block text-[8px] font-black uppercase tracking-widest text-slate-600 mb-1">Bib</span>
+                            <span className="font-mono font-bold text-slate-400">{participant.bibNumber}</span>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* No map warning */}
-            <div className="mt-12 text-center text-gray-600 text-sm">
-                <p>Karta och live-spår är blockerade under tävling</p>
+            {/* Status Footer */}
+            <div className="absolute bottom-12 inset-x-0 text-center px-8 relative z-10">
+                <div className="max-w-xs mx-auto py-3 bg-slate-900/50 border border-slate-800 rounded-full">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Live Tracking Active</p>
+                </div>
+                <p className="mt-4 text-[10px] font-bold text-slate-700 leading-relaxed max-w-[200px] mx-auto">Karta och resultat är dolda för din klass under pågående tävling</p>
             </div>
         </div>
     );
@@ -395,27 +410,33 @@ function FinishedView({
         : null;
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white">
+        <div className="min-h-screen bg-slate-950 text-white">
             {/* Header */}
-            <header className="bg-black/30 backdrop-blur-sm">
-                <div className="max-w-lg mx-auto px-4 py-4">
-                    <h1 className="font-bold text-lg">{event.name}</h1>
-                    <p className="text-sm text-gray-400">{participant.className}</p>
+            <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40 backdrop-blur-md bg-opacity-80">
+                <div className="max-w-lg mx-auto px-6 py-4 flex items-center justify-between">
+                    <div>
+                        <h1 className="font-black uppercase tracking-tight text-lg leading-tight">{event.name}</h1>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500">Mål / Finished</p>
+                    </div>
                 </div>
             </header>
 
-            <main className="max-w-lg mx-auto px-4 py-8 space-y-6">
-                {/* Result */}
-                <div className="bg-emerald-500/20 border border-emerald-500/50 rounded-2xl p-6 text-center">
-                    <p className="text-sm text-emerald-400 mb-2">✓ I mål!</p>
-                    <div className="text-5xl font-mono font-bold text-white mb-2">
+            <main className="max-w-lg mx-auto px-4 py-8 space-y-6 pb-24">
+                {/* Result Card */}
+                <div className="bg-slate-900 rounded-3xl border border-slate-800 p-10 text-center shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-500"></div>
+                    <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-500/20">
+                        <span className="text-3xl">🏁</span>
+                    </div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-2">Officiell Tid</p>
+                    <div className="text-6xl font-mono font-black text-white mb-6 tracking-tighter">
                         {runningTime ? formatElapsedTime(runningTime) : '--:--:--'}
                     </div>
-                    <div className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${participant.resultStatus === 'ok'
-                        ? 'bg-emerald-500 text-white'
+                    <div className={`inline-flex items-center px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest border ${participant.resultStatus === 'ok'
+                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
                         : participant.resultStatus === 'mp'
-                            ? 'bg-orange-500 text-white'
-                            : 'bg-gray-500 text-white'
+                            ? 'bg-orange-500/10 text-orange-500 border-orange-500/20'
+                            : 'bg-slate-800 text-slate-400 border-slate-700'
                         }`}>
                         {participant.resultStatus?.toUpperCase() || 'OK'}
                     </div>
@@ -423,46 +444,53 @@ function FinishedView({
 
                 {/* GPS Upload */}
                 {settings.allowGpsUpload && (
-                    <div className="bg-white/5 rounded-xl p-4">
-                        <h3 className="text-sm text-gray-400 mb-3">📍 GPS-spår</h3>
-                        <button className="w-full py-3 bg-blue-500 hover:bg-blue-600 rounded-lg font-semibold transition-colors">
-                            Ladda upp GPS-spår
+                    <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 text-center">
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4 whitespace-nowrap">📍 Dela ditt spår</h3>
+                        <button className="w-full py-4 bg-blue-600 hover:bg-blue-500 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-blue-900/40">
+                            Ladda upp GPX
                         </button>
-                        <p className="text-xs text-gray-500 mt-2 text-center">
-                            Stöder GPX-filer från klockor och appar
+                        <p className="text-[10px] text-slate-500 mt-3 font-bold uppercase tracking-tight">
+                            Synka automatiskt mer ladda upp fil
                         </p>
                     </div>
                 )}
 
-                {/* Map */}
-                <div className="bg-white/5 rounded-xl p-4">
-                    <h3 className="text-sm text-gray-400 mb-3">🗺️ Karta</h3>
+                {/* Map Link / Status */}
+                <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 overflow-hidden">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">🗺️ Kartvisning</h3>
+                        {!settings.isMapReleased && (
+                            <span className="px-2 py-0.5 bg-slate-800 text-slate-400 text-[8px] font-black uppercase tracking-widest rounded border border-slate-700">Låst</span>
+                        )}
+                    </div>
+
                     {settings.isMapReleased ? (
-                        <div className="aspect-video bg-gray-800 rounded-lg flex items-center justify-center">
-                            <span className="text-gray-500">Karta visas här</span>
+                        <div className="aspect-video bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-center group cursor-pointer overflow-hidden relative">
+                            <div className="absolute inset-0 bg-emerald-500/5 group-hover:opacity-0 transition-opacity"></div>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 group-hover:text-emerald-400 transition-colors">Se karta & vägval</span>
                         </div>
                     ) : (
-                        <div className="text-center py-6 text-gray-500">
-                            <div className="text-4xl mb-2">🔒</div>
-                            <p>Kartan är ännu inte släppt</p>
-                            <p className="text-sm">Väntar på att alla startat...</p>
+                        <div className="text-center py-8">
+                            <div className="text-4xl mb-4 opacity-10">🔒</div>
+                            <p className="text-white font-bold text-sm mb-1 uppercase tracking-tight">Kartan är inte släppt</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">Väntar på att alla deltagare startat</p>
                         </div>
                     )}
                 </div>
 
-                {/* Links */}
-                <div className="space-y-3">
+                {/* Navigation Links */}
+                <div className="grid grid-cols-2 gap-4">
                     <Link
                         href={`/events/${event.id}/results`}
-                        className="block w-full py-3 bg-white/10 hover:bg-white/20 rounded-xl text-center font-semibold transition-colors"
+                        className="py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-2xl text-center font-black uppercase tracking-widest text-[10px] transition-all"
                     >
-                        Se alla resultat
+                        Resultat
                     </Link>
                     <Link
                         href={`/events/${event.id}`}
-                        className="block w-full py-3 text-gray-400 text-center hover:text-white transition-colors"
+                        className="py-4 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-2xl text-center font-black uppercase tracking-widest text-[10px] transition-all"
                     >
-                        Tillbaka till tävlingen
+                        Eventinfo
                     </Link>
                 </div>
             </main>
@@ -479,13 +507,13 @@ function CountdownDisplay({ milliseconds }: { milliseconds: number }) {
 
     if (hours > 0) {
         return (
-            <span className="font-mono font-bold text-white">
+            <span>
                 {hours}h {minutes}m
             </span>
         );
     }
     return (
-        <span className="font-mono font-bold text-white">
+        <span>
             {minutes}:{seconds.toString().padStart(2, '0')}
         </span>
     );

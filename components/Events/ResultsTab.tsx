@@ -86,9 +86,17 @@ export default function ResultsTab({ event }: Props) {
             {entriesByClass.map((group: any) => (
                 <div key={group.class.id} className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden shadow-sm">
                     <div className="px-6 py-4 bg-slate-950/50 border-b border-slate-800 flex justify-between items-center">
-                        <div>
-                            <h3 className="text-lg font-bold text-white uppercase tracking-wide">{group.class.name}</h3>
-                            <p className="text-emerald-500 text-xs font-bold uppercase tracking-widest">{group.entries.length} Deltagare</p>
+                        <div className="flex items-center gap-4">
+                            <div>
+                                <h3 className="text-lg font-bold text-white uppercase tracking-wide leading-tight">{group.class.name}</h3>
+                                <p className="text-emerald-500 text-[10px] font-bold uppercase tracking-widest leading-none mt-1">{group.entries.length} Deltagare</p>
+                            </div>
+                            <Link
+                                href={`/events/${event.id}/results/${group.class.id}`}
+                                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded text-[9px] font-black uppercase tracking-widest border border-slate-700 transition-all shadow-sm"
+                            >
+                                Analysera (WinSplits) →
+                            </Link>
                         </div>
                         {group.class.hasPool && (
                             <span className="px-2 py-1 bg-purple-900/30 text-purple-300 rounded text-[10px] font-mono border border-purple-800/50 uppercase tracking-widest">
@@ -103,10 +111,10 @@ export default function ResultsTab({ event }: Props) {
                                 <button
                                     key={entry.id}
                                     onClick={() => setSelectedEntry(entry)}
-                                    className="w-full px-6 py-4 flex items-center gap-4 hover:bg-slate-800/50 transition-colors text-left group"
+                                    className="w-full px-4 py-2 flex items-center gap-3 hover:bg-slate-800/50 transition-colors text-left group"
                                 >
                                     {/* Position Badge */}
-                                    <div className={`w-8 h-8 rounded flex items-center justify-center font-bold text-sm shadow-sm transition-transform group-hover:scale-110 ${idx === 0 ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20' :
+                                    <div className={`w-7 h-7 rounded flex items-center justify-center font-bold text-xs shadow-sm transition-transform group-hover:scale-110 ${idx === 0 ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20' :
                                         idx === 1 ? 'bg-slate-300 text-slate-900' :
                                             idx === 2 ? 'bg-amber-600 text-white' :
                                                 'bg-slate-800 text-slate-500'
@@ -117,7 +125,7 @@ export default function ResultsTab({ event }: Props) {
                                     {/* Name & Club */}
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2">
-                                            <span className={`font-bold transition-colors ${isWinner ? 'text-emerald-400' : 'text-slate-200 group-hover:text-emerald-400'}`}>
+                                            <span className={`font-bold text-sm transition-colors ${isWinner ? 'text-emerald-400' : 'text-slate-200 group-hover:text-emerald-400'}`}>
                                                 {entry.name || `${entry.firstName} ${entry.lastName}`}
                                             </span>
                                             {/* Fork key badge */}
@@ -127,7 +135,7 @@ export default function ResultsTab({ event }: Props) {
                                                 </span>
                                             )}
                                         </div>
-                                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{entry.clubName || entry.club}</div>
+                                        <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider leading-none">{entry.clubName || entry.club}</div>
                                     </div>
 
                                     {/* Time */}

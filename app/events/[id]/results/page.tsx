@@ -109,26 +109,26 @@ export default function PublicResultsPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+            <div className="min-h-screen flex items-center justify-center bg-slate-950">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="min-h-screen bg-slate-950 text-white">
             {/* Header */}
-            <header className="bg-white dark:bg-gray-800 shadow-sm">
+            <header className="bg-slate-900 border-b border-slate-800">
                 <div className="max-w-4xl mx-auto px-4 py-6">
-                    <Link href={`/events/${eventId}`} className="text-sm text-gray-500 hover:text-emerald-600 mb-2 inline-block">
+                    <Link href={`/events/${eventId}`} className="text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-emerald-400 mb-3 inline-block transition-colors">
                         ← Tillbaka till tävlingen
                     </Link>
                     <div className="flex items-center justify-between">
                         <div>
-                            <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">
+                            <h1 className="text-3xl font-bold uppercase tracking-tight text-white">
                                 {eventName}
                             </h1>
-                            <p className="text-gray-600 dark:text-gray-400">
+                            <p className="text-slate-400 mt-1">
                                 {eventDate && new Date(eventDate).toLocaleDateString('sv-SE', {
                                     weekday: 'long',
                                     year: 'numeric',
@@ -137,10 +137,10 @@ export default function PublicResultsPage() {
                                 })}
                             </p>
                         </div>
-                        <div className="text-right text-sm text-gray-500">
-                            <div>🏃 {stats.finished} / {stats.total} i mål</div>
+                        <div className="text-right text-xs font-bold uppercase tracking-widest text-slate-500">
+                            <div className="mb-1 text-emerald-500 font-black">🏃 {stats.finished} / {stats.total} i mål</div>
                             {lastUpdated && (
-                                <div className="text-xs">
+                                <div className="text-[10px] opacity-70">
                                     Uppdaterad: {lastUpdated.toLocaleTimeString('sv-SE')}
                                 </div>
                             )}
@@ -151,12 +151,12 @@ export default function PublicResultsPage() {
 
             <div className="max-w-4xl mx-auto px-4 py-8">
                 {/* Class Filter */}
-                <div className="mb-6 flex flex-wrap gap-2">
+                <div className="mb-8 flex flex-wrap gap-2">
                     <button
                         onClick={() => setSelectedClass('all')}
-                        className={`px-4 py-2 rounded-lg font-semibold transition-colors ${selectedClass === 'all'
-                                ? 'bg-emerald-500 text-white'
-                                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                        className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${selectedClass === 'all'
+                            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30'
+                            : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white border border-slate-800'
                             }`}
                     >
                         Alla klasser
@@ -165,9 +165,9 @@ export default function PublicResultsPage() {
                         <button
                             key={cls.id}
                             onClick={() => setSelectedClass(cls.id)}
-                            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${selectedClass === cls.id
-                                    ? 'bg-emerald-500 text-white'
-                                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                            className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${selectedClass === cls.id
+                                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30'
+                                : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white border border-slate-800'
                                 }`}
                         >
                             {cls.name}
@@ -177,17 +177,17 @@ export default function PublicResultsPage() {
 
                 {/* Results */}
                 {filteredClasses.length === 0 || entries.length === 0 ? (
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-12 text-center">
-                        <div className="text-6xl mb-4">⏳</div>
-                        <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-2">
+                    <div className="bg-slate-900 rounded-xl border border-slate-800 p-16 text-center">
+                        <div className="text-6xl mb-6 opacity-30">⏳</div>
+                        <h3 className="text-xl font-bold text-white uppercase tracking-tight mb-2">
                             Inga resultat ännu
                         </h3>
-                        <p className="text-gray-600 dark:text-gray-400">
+                        <p className="text-slate-500 text-sm font-medium">
                             Resultat uppdateras automatiskt var 30:e sekund
                         </p>
                     </div>
                 ) : (
-                    <div className="space-y-6">
+                    <div className="space-y-8">
                         {filteredClasses.map(([classId, classEntries]) => {
                             const finishedEntries = classEntries.filter(e => e.status === 'finished' && e.resultStatus === 'ok');
                             const winnerTime = finishedEntries[0]?.finishTime && finishedEntries[0]?.startTime
@@ -195,15 +195,20 @@ export default function PublicResultsPage() {
                                 : null;
 
                             return (
-                                <div key={classId} className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
-                                    <div className="p-4 border-b dark:border-gray-700 bg-gradient-to-r from-emerald-500 to-teal-500 text-white">
-                                        <h2 className="font-bold text-xl">{getClassName(classId)}</h2>
-                                        <p className="text-emerald-100 text-sm">
-                                            {classEntries.filter(e => e.status === 'finished').length} av {classEntries.length} i mål
-                                        </p>
+                                <div key={classId} className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
+                                    <div className="p-5 border-b border-slate-800 bg-slate-900/50 flex items-center justify-between">
+                                        <div>
+                                            <h2 className="font-black text-2xl uppercase tracking-tight text-white">{getClassName(classId)}</h2>
+                                            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-0.5">
+                                                {classEntries.filter(e => e.status === 'finished').length} av {classEntries.length} i mål
+                                            </p>
+                                        </div>
+                                        <Link href={`/events/${eventId}/results/${classId}`} className="text-[10px] font-black uppercase tracking-widest text-emerald-500 hover:text-emerald-400 transition-colors bg-emerald-500/10 px-3 py-2 rounded border border-emerald-500/20">
+                                            Visa detaljer →
+                                        </Link>
                                     </div>
 
-                                    <div className="divide-y dark:divide-gray-700">
+                                    <div className="divide-y divide-slate-800/50">
                                         {classEntries.slice(0, 50).map((entry, index) => {
                                             const isFinished = entry.status === 'finished';
                                             const isOK = entry.resultStatus === 'ok';
@@ -216,25 +221,25 @@ export default function PublicResultsPage() {
                                             return (
                                                 <div
                                                     key={entry.id}
-                                                    className={`p-4 flex items-center justify-between ${position === 1 ? 'bg-yellow-50 dark:bg-yellow-900/20' :
-                                                            position === 2 ? 'bg-gray-50 dark:bg-gray-700/50' :
-                                                                position === 3 ? 'bg-orange-50 dark:bg-orange-900/20' : ''
+                                                    className={`py-1 px-4 flex items-center justify-between transition-colors hover:bg-slate-800/30 ${position === 1 ? 'bg-emerald-500/5' :
+                                                        position === 2 ? 'bg-slate-400/5' :
+                                                            position === 3 ? 'bg-amber-500/5' : ''
                                                         }`}
                                                 >
-                                                    <div className="flex items-center gap-4">
-                                                        <div className={`w-10 h-10 flex items-center justify-center rounded-full font-bold ${position === 1 ? 'bg-yellow-400 text-yellow-900' :
-                                                                position === 2 ? 'bg-gray-300 text-gray-700' :
-                                                                    position === 3 ? 'bg-orange-400 text-orange-900' :
-                                                                        position ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300' :
-                                                                            'bg-gray-100 dark:bg-gray-700 text-gray-400'
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-7 h-7 flex items-center justify-center rounded-full font-black text-[10px] ${position === 1 ? 'bg-emerald-500 text-slate-950' :
+                                                            position === 2 ? 'bg-slate-400 text-slate-950' :
+                                                                position === 3 ? 'bg-amber-500 text-slate-950' :
+                                                                    position ? 'bg-slate-800 text-slate-400' :
+                                                                        'bg-slate-800/50 text-slate-600'
                                                             }`}>
                                                             {position || '-'}
                                                         </div>
                                                         <div>
-                                                            <div className="font-semibold text-gray-800 dark:text-gray-100">
+                                                            <div className="font-bold text-sm text-white leading-tight">
                                                                 {entry.firstName} {entry.lastName}
                                                             </div>
-                                                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 leading-none">
                                                                 {entry.clubName}
                                                             </div>
                                                         </div>
@@ -242,23 +247,23 @@ export default function PublicResultsPage() {
                                                     <div className="text-right">
                                                         {isFinished ? (
                                                             <>
-                                                                <div className={`text-xl font-mono font-bold ${isOK ? 'text-gray-800 dark:text-gray-100' : 'text-red-600'
+                                                                <div className={`text-xl font-mono font-black ${isOK ? 'text-white' : 'text-red-500'
                                                                     }`}>
                                                                     {formatTime(entry.startTime, entry.finishTime)}
                                                                 </div>
                                                                 {!isOK && (
-                                                                    <div className="text-xs text-red-500 uppercase">
+                                                                    <div className="text-[10px] font-black text-red-500 uppercase tracking-widest mt-0.5">
                                                                         {entry.resultStatus}
                                                                     </div>
                                                                 )}
                                                                 {diff && diff > 0 && (
-                                                                    <div className="text-sm text-gray-500">
+                                                                    <div className="text-xs font-bold text-slate-500 mt-0.5">
                                                                         +{formatTime(undefined, new Date(diff).toISOString())}
                                                                     </div>
                                                                 )}
                                                             </>
                                                         ) : (
-                                                            <div className="text-gray-400">-</div>
+                                                            <div className="text-slate-700 font-bold uppercase tracking-widest text-xs">På banan</div>
                                                         )}
                                                     </div>
                                                 </div>

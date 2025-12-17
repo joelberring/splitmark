@@ -247,19 +247,19 @@ export function subscribeToEvents(
 }
 
 /**
- * Get only published/active events
+ * Get published events (active and completed)
  */
 export async function getPublishedEvents(): Promise<FirestoreEvent[]> {
     if (!isFirebaseConfigured() || !firestore) {
         const events = await getEventsFromLocalStorage();
-        return events.filter(e => e.status === 'active');
+        return events.filter(e => e.status === 'active' || e.status === 'completed');
     }
 
     try {
         const eventsRef = collection(firestore, COLLECTIONS.EVENTS);
         const q = query(
             eventsRef,
-            where('status', '==', 'active'),
+            where('status', 'in', ['active', 'completed']),
             orderBy('date', 'desc')
         );
         const snapshot = await getDocs(q);
@@ -273,7 +273,7 @@ export async function getPublishedEvents(): Promise<FirestoreEvent[]> {
     } catch (error) {
         console.error('Error fetching published events:', error);
         const events = await getEventsFromLocalStorage();
-        return events.filter(e => e.status === 'active');
+        return events.filter(e => e.status === 'active' || e.status === 'completed');
     }
 }
 

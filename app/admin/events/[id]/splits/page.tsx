@@ -78,19 +78,19 @@ export default function SplitsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="min-h-screen bg-slate-950 text-white">
             {/* Header */}
-            <header className="bg-white dark:bg-gray-800 shadow-sm">
-                <div className="max-w-7xl mx-auto px-4 py-6">
-                    <Link href={`/admin/events/${eventId}`} className="text-sm text-gray-500 hover:text-emerald-600 mb-2 inline-block">
+            <header className="bg-slate-900 border-b border-slate-800 backdrop-blur-md bg-opacity-80 sticky top-0 z-40">
+                <div className="max-w-7xl mx-auto px-6 py-4">
+                    <Link href={`/admin/events/${eventId}`} className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-emerald-400 transition-colors mb-2 inline-block">
                         ← Tillbaka till {eventName}
                     </Link>
                     <div className="flex items-center justify-between">
-                        <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">
-                            📊 Sträcktider
+                        <h1 className="text-xl font-black uppercase tracking-tight text-white flex items-center gap-3">
+                            <span className="text-emerald-500">📊</span> Sträcktider
                         </h1>
                         <div className="flex gap-3">
-                            <button className="px-4 py-2 bg-purple-500 text-white rounded-lg font-semibold hover:bg-purple-600">
+                            <button className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border border-slate-700">
                                 📥 WinSplits Export
                             </button>
                         </div>
@@ -98,17 +98,18 @@ export default function SplitsPage() {
                 </div>
             </header>
 
-            <div className="max-w-7xl mx-auto px-4 py-8">
+            <div className="max-w-7xl mx-auto px-6 py-8">
                 {/* Class Selection */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 mb-6">
+                <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 mb-8 relative overflow-hidden">
+                    <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500 opacity-20"></div>
                     <div className="flex gap-2 flex-wrap">
                         {classes.map((cls: any) => (
                             <button
                                 key={cls.id}
                                 onClick={() => setSelectedClass(cls.id)}
-                                className={`px-4 py-2 rounded-lg font-semibold transition-colors ${selectedClass === cls.id
-                                        ? 'bg-emerald-500 text-white'
-                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedClass === cls.id
+                                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40'
+                                    : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
                                     }`}
                             >
                                 {cls.name}
@@ -119,94 +120,98 @@ export default function SplitsPage() {
 
                 {/* Splits Table */}
                 {classEntries.length === 0 ? (
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-12 text-center">
-                        <div className="text-6xl mb-4">📊</div>
-                        <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-2">
+                    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-24 text-center shadow-2xl">
+                        <div className="text-7xl mb-8 opacity-10">📊</div>
+                        <h3 className="text-xl font-black uppercase tracking-tight text-white mb-2">
                             Inga sträcktider
                         </h3>
-                        <p className="text-gray-600 dark:text-gray-400">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
                             Inga deltagare i mål för {getClassName(selectedClass)} ännu
                         </p>
                     </div>
                 ) : (
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-x-auto">
-                        <table className="w-full">
-                            <thead className="bg-gray-50 dark:bg-gray-700">
-                                <tr>
-                                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 sticky left-0 bg-gray-50 dark:bg-gray-700">#</th>
-                                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 sticky left-8 bg-gray-50 dark:bg-gray-700 min-w-[150px]">Namn</th>
-                                    <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 min-w-[80px]">Total</th>
-                                    {controls.map(ctrl => (
-                                        <th key={ctrl} className="px-2 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 min-w-[60px]">
-                                            {ctrl}
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y dark:divide-gray-700 text-sm">
-                                {classEntries.map((entry, index) => {
-                                    const totalTime = entry.finishTime && entry.startTime
-                                        ? new Date(entry.finishTime).getTime() - new Date(entry.startTime).getTime()
-                                        : 0;
-                                    const winnerTime = classEntries[0]?.finishTime && classEntries[0]?.startTime
-                                        ? new Date(classEntries[0].finishTime).getTime() - new Date(classEntries[0].startTime).getTime()
-                                        : 0;
+                    <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-slate-950/50">
+                                    <tr>
+                                        <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-800 sticky left-0 bg-slate-900/95 backdrop-blur-sm z-10 w-12">#</th>
+                                        <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-800 sticky left-12 bg-slate-900/95 backdrop-blur-sm z-10 min-w-[200px]">Namn</th>
+                                        <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-800 text-right min-w-[100px]">Total</th>
+                                        {controls.map(ctrl => (
+                                            <th key={ctrl} className="px-2 py-4 text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-800 text-center min-w-[80px]">
+                                                {ctrl}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800/50">
+                                    {classEntries.map((entry, index) => {
+                                        const totalTime = entry.finishTime && entry.startTime
+                                            ? new Date(entry.finishTime).getTime() - new Date(entry.startTime).getTime()
+                                            : 0;
+                                        const winnerTime = classEntries[0]?.finishTime && classEntries[0]?.startTime
+                                            ? new Date(classEntries[0].finishTime).getTime() - new Date(classEntries[0].startTime).getTime()
+                                            : 0;
 
-                                    return (
-                                        <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                            <td className="px-3 py-2 font-bold text-gray-800 dark:text-gray-100 sticky left-0 bg-white dark:bg-gray-800">
-                                                {index + 1}
-                                            </td>
-                                            <td className="px-3 py-2 sticky left-8 bg-white dark:bg-gray-800">
-                                                <div className="font-semibold text-gray-800 dark:text-gray-100">
-                                                    {entry.firstName} {entry.lastName}
-                                                </div>
-                                                <div className="text-xs text-gray-500">{entry.clubName}</div>
-                                            </td>
-                                            <td className="px-3 py-2 text-right font-mono font-bold text-gray-800 dark:text-gray-100">
-                                                {formatTime(totalTime)}
-                                                {index > 0 && (
-                                                    <div className="text-xs text-gray-500">
-                                                        +{formatTime(totalTime - winnerTime)}
-                                                    </div>
-                                                )}
-                                            </td>
-                                            {entry.splits.map((split: any, i: number) => (
-                                                <td key={i} className="px-2 py-2 text-center">
-                                                    <SplitCell
-                                                        legTime={split.legTime}
-                                                        cumTime={split.cumTime}
-                                                        position={split.position}
-                                                        isBest={split.position === 1}
-                                                    />
+                                        return (
+                                            <tr key={entry.id} className="hover:bg-slate-800/30 transition-colors group">
+                                                <td className="px-4 py-3 font-black text-slate-600 group-hover:text-slate-400 text-xs sticky left-0 bg-slate-900/95 backdrop-blur-sm z-10">
+                                                    {index + 1}
                                                 </td>
-                                            ))}
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                                                <td className="px-4 py-3 sticky left-12 bg-slate-900/95 backdrop-blur-sm z-10">
+                                                    <div className="font-black uppercase tracking-tight text-white group-hover:text-emerald-400 transition-colors">
+                                                        {entry.firstName} {entry.lastName}
+                                                    </div>
+                                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">{entry.clubName}</div>
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    <div className="font-mono font-black text-white">{formatTime(totalTime)}</div>
+                                                    {index > 0 && (
+                                                        <div className="text-[10px] font-mono font-black text-slate-600">
+                                                            +{formatTime(totalTime - winnerTime)}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                {entry.splits.map((split: any, i: number) => (
+                                                    <td key={i} className="px-2 py-3 text-center">
+                                                        <SplitCell
+                                                            legTime={split.legTime}
+                                                            cumTime={split.cumTime}
+                                                            position={split.position}
+                                                            isBest={split.position === 1}
+                                                        />
+                                                    </td>
+                                                ))}
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 )}
 
                 {/* Legend */}
-                <div className="mt-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4">
-                    <h3 className="font-semibold text-gray-800 dark:text-gray-100 mb-3">Förklaring</h3>
-                    <div className="flex gap-6 text-sm">
-                        <span className="flex items-center gap-2">
-                            <span className="px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded">1</span>
-                            Bästa sträcktid
-                        </span>
-                        <span className="flex items-center gap-2">
-                            <span className="px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded">2-3</span>
-                            Topp 3
-                        </span>
-                        <span className="flex items-center gap-2">
-                            <span className="text-gray-600 dark:text-gray-400">Överst:</span> Sträcktid
-                        </span>
-                        <span className="flex items-center gap-2">
-                            <span className="text-gray-600 dark:text-gray-400">Underst:</span> Kumulativ (placering)
-                        </span>
+                <div className="mt-8 bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-8 relative overflow-hidden">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6">Förklaring</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-[10px] font-black uppercase tracking-widest">
+                        <div className="flex items-center gap-3">
+                            <span className="w-8 h-6 flex items-center justify-center bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg">1</span>
+                            <span className="text-slate-400">Bästa sträcktid</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <span className="w-8 h-6 flex items-center justify-center bg-orange-500/10 border border-orange-500/20 text-orange-400 rounded-lg">2-3</span>
+                            <span className="text-slate-400">Topp 3</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <span className="text-slate-300">Överst:</span>
+                            <span className="text-slate-500">Sträcktid</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <span className="text-slate-300">Underst:</span>
+                            <span className="text-slate-500">Total (placering)</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -233,17 +238,17 @@ function SplitCell({
     };
 
     const positionClass = position === 1
-        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+        ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
         : position <= 3
-            ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
-            : '';
+            ? 'bg-orange-500/10 border border-orange-500/20 text-orange-400'
+            : 'border border-transparent';
 
     return (
-        <div className={`px-1 py-0.5 rounded ${positionClass}`}>
-            <div className={`font-mono text-xs ${isBest ? 'font-bold' : ''}`}>
+        <div className={`px-2 py-1.5 rounded-xl transition-all ${positionClass}`}>
+            <div className={`font-mono text-[11px] ${isBest ? 'font-black' : 'font-bold'}`}>
                 {formatTime(legTime)}
             </div>
-            <div className="font-mono text-[10px] text-gray-500">
+            <div className="font-mono text-[9px] font-black opacity-50">
                 {formatTime(cumTime)} ({position})
             </div>
         </div>

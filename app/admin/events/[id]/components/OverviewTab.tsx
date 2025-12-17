@@ -24,26 +24,38 @@ export default function OverviewTab({ event }: { event: EventData }) {
             <div className="md:col-span-3 bg-slate-900 border border-slate-800 rounded-xl p-6">
                 <h3 className="font-bold text-sm uppercase tracking-widest text-slate-500 mb-4">Snabbåtgärder</h3>
                 <div className="grid md:grid-cols-5 gap-3">
-                    <Link href={`/admin/events/${event.id}/import-eventor`} className="p-4 bg-blue-900/20 border border-blue-800/50 rounded-lg hover:bg-blue-900/30 transition-colors text-center group">
+                    <Link href={`/admin/events/${event.id}/import`} className="p-4 bg-blue-900/20 border border-blue-800/50 rounded-lg hover:bg-blue-900/30 transition-colors text-center group">
                         <span className="text-2xl">📥</span>
                         <div className="font-bold text-white text-xs uppercase tracking-wide mt-2 group-hover:text-blue-400">Importera Eventor</div>
                     </Link>
-                    <Link href={`/admin/events/${event.id}/classes`} className="p-4 bg-emerald-900/20 border border-emerald-800/50 rounded-lg hover:bg-emerald-900/30 transition-colors text-center group">
+                    <button
+                        onClick={() => window.location.hash = '#classes'}
+                        className="p-4 bg-emerald-900/20 border border-emerald-800/50 rounded-lg hover:bg-emerald-900/30 transition-colors text-center group"
+                    >
                         <span className="text-2xl">➕</span>
                         <div className="font-bold text-white text-xs uppercase tracking-wide mt-2 group-hover:text-emerald-400">Lägg till klasser</div>
-                    </Link>
-                    <Link href={`/admin/events/${event.id}/courses`} className="p-4 bg-purple-900/20 border border-purple-800/50 rounded-lg hover:bg-purple-900/30 transition-colors text-center group">
+                    </button>
+                    <button
+                        onClick={() => window.location.hash = '#map'}
+                        className="p-4 bg-purple-900/20 border border-purple-800/50 rounded-lg hover:bg-purple-900/30 transition-colors text-center group"
+                    >
                         <span className="text-2xl">🗺️</span>
                         <div className="font-bold text-white text-xs uppercase tracking-wide mt-2 group-hover:text-purple-400">Definiera banor</div>
-                    </Link>
-                    <Link href={`/admin/events/${event.id}/print`} className="p-4 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-colors text-center group">
+                    </button>
+                    <button
+                        onClick={() => alert('Utskrift kommer snart!')}
+                        className="p-4 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-colors text-center group"
+                    >
                         <span className="text-2xl">🖨️</span>
                         <div className="font-bold text-white text-xs uppercase tracking-wide mt-2 group-hover:text-slate-300">Skriv ut listor</div>
-                    </Link>
-                    <Link href={`/admin/events/${event.id}/ekonomi`} className="p-4 bg-amber-900/20 border border-amber-800/50 rounded-lg hover:bg-amber-900/30 transition-colors text-center group">
+                    </button>
+                    <button
+                        onClick={() => alert('Ekonomifunktioner kommer snart!')}
+                        className="p-4 bg-amber-900/20 border border-amber-800/50 rounded-lg hover:bg-amber-900/30 transition-colors text-center group"
+                    >
                         <span className="text-2xl">💰</span>
                         <div className="font-bold text-white text-xs uppercase tracking-wide mt-2 group-hover:text-amber-400">Ekonomi</div>
-                    </Link>
+                    </button>
                 </div>
             </div>
         </div>

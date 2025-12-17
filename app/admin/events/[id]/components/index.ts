@@ -6,6 +6,7 @@ export { default as TimingTab } from './TimingTab';
 export { default as ParticipantsTab } from './ParticipantsTab';
 export { default as MapTab } from './MapTab';
 export { default as SpeakerTab } from './SpeakerTab';
+export { default as SafetyTab } from './SafetyTab';
+export { default as ResultEditModal } from './ResultEditModal';
 export type { EventData, EventClass, Entry } from './shared';
 export { saveEvent, parsePurplePenData } from './shared';
-

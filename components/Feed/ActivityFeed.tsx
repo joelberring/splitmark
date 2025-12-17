@@ -171,7 +171,7 @@ function ActivityCard({
 
             {/* Content */}
             <div className="px-4 py-3">
-                <Link href={activity.eventId === 'ans-2025' ? '/test-event' : `/events/${activity.eventId}`}>
+                <Link href={`/spectate/${activity.eventId}`}>
                     <h3 className="font-bold text-white hover:text-emerald-400 transition-colors">
                         {activity.eventName}
                     </h3>

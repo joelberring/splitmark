@@ -123,332 +123,317 @@ export default function SpeakerPage() {
         return data?.classes.find((c: any) => c.id === classId)?.name || '';
     };
 
+    const [comments, setComments] = useState<any[]>([]);
+    const [newComment, setNewComment] = useState('');
+    const [publishing, setPublishing] = useState(false);
+
+    useEffect(() => {
+        // Load initial comments
+        const stored = localStorage.getItem(`comments-${eventId}`);
+        if (stored) setComments(JSON.parse(stored));
+    }, [eventId]);
+
+    const handlePostComment = async () => {
+        if (!newComment.trim()) return;
+        setPublishing(true);
+
+        const comment = {
+            id: Date.now().toString(),
+            text: newComment,
+            timestamp: new Date().toISOString(),
+        };
+
+        const updated = [comment, ...comments];
+        setComments(updated);
+        localStorage.setItem(`comments-${eventId}`, JSON.stringify(updated));
+        setNewComment('');
+        setPublishing(false);
+    };
+
+    const handleDeleteComment = (id: string) => {
+        const updated = comments.filter(c => c.id !== id);
+        setComments(updated);
+        localStorage.setItem(`comments-${eventId}`, JSON.stringify(updated));
+    };
+
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-emerald-400"></div>
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
             </div>
         );
     }
 
+    if (!data) return null;
+
     return (
-        <div className="min-h-screen bg-gray-900 text-white">
+        <div className="min-h-screen bg-slate-950 text-white pb-32">
             {/* Header */}
-            <header className="bg-gray-800 border-b border-gray-700">
-                <div className="max-w-7xl mx-auto px-4 py-4">
+            <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40 backdrop-blur-md bg-opacity-80">
+                <div className="max-w-7xl mx-auto px-6 py-4">
                     <div className="flex items-center justify-between">
-                        <div>
-                            <Link href={`/admin/events/${eventId}`} className="text-sm text-gray-400 hover:text-emerald-400 mb-1 inline-block">
-                                ← Admin
+                        <div className="flex items-center gap-6">
+                            <Link href={`/admin/events/${eventId}`} className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-emerald-400 transition-colors">
+                                ← Tillbaka
                             </Link>
-                            <h1 className="text-2xl font-bold text-white">
-                                🎙️ Speakerstöd - {data?.eventName}
-                            </h1>
-                        </div>
-                        <div className="text-right">
-                            <div className="text-4xl font-mono font-bold text-emerald-400">
-                                {currentTime.toLocaleTimeString('sv-SE')}
+                            <div>
+                                <h1 className="text-xl font-black uppercase tracking-tight text-white flex items-center gap-3">
+                                    <span className="text-emerald-500 animate-pulse">🎙️</span> Speaker Mode
+                                </h1>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-1">
+                                    {data.eventName}
+                                </p>
                             </div>
-                            <div className="text-sm text-gray-400">
-                                Live uppdatering var 5:e sekund
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                                LIVE
                             </div>
                         </div>
                     </div>
                 </div>
+            </header>
 
+            <main className="max-w-7xl mx-auto px-6 py-8">
                 {/* View Tabs */}
-                <div className="max-w-7xl mx-auto px-4 py-2 flex gap-2">
+                <div className="flex gap-2 mb-8 overflow-x-auto pb-2 scrollbar-hide">
                     {[
-                        { id: 'events', label: '🏃 Målgångar', icon: '' },
-                        { id: 'feed', label: '📡 Händelseström', icon: '' },
-                        { id: 'class', label: '🏆 Klassresultat', icon: '' },
-                        { id: 'missing', label: '🌲 Kvar i skogen', icon: '' },
-                        { id: 'input', label: '⏱️ Tidsinmatning', icon: '' },
+                        { id: 'events', label: '🏃 Målgångar' },
+                        { id: 'feed', label: '📡 Händelseström' },
+                        { id: 'class', label: '🏆 Resultat' },
+                        { id: 'missing', label: '🌲 Skogen' },
+                        { id: 'input', label: '⏱️ Inmatning' },
                     ].map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setView(tab.id as any)}
-                            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${view === tab.id
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${view === tab.id
+                                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40'
+                                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
                                 }`}
                         >
                             {tab.label}
                         </button>
                     ))}
-                    <div className="flex-1"></div>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={showFavoritesOnly}
-                            onChange={(e) => setShowFavoritesOnly(e.target.checked)}
-                            className="w-4 h-4 rounded"
-                        />
-                        <span className="text-gray-300">⭐ Endast favoriter</span>
-                    </label>
                 </div>
-            </header>
 
-            <div className="max-w-7xl mx-auto px-4 py-6">
-                {/* Events View */}
-                {view === 'events' && (
-                    <div className="space-y-3">
-                        {recentFinishes.length === 0 ? (
-                            <div className="p-12 text-center text-gray-400">
-                                <div className="text-6xl mb-4">⏳</div>
-                                <p>Väntar på målgångar...</p>
-                            </div>
-                        ) : (
-                            recentFinishes
-                                .filter(e => !showFavoritesOnly || favorites.has(e.id))
-                                .map((entry, index) => (
-                                    <div
-                                        key={entry.id}
-                                        className={`bg-gray-800 rounded-xl p-4 border-l-4 ${index === 0 ? 'border-emerald-500 bg-gray-800/80' : 'border-gray-700'
-                                            } ${entry.resultStatus === 'mp' ? 'border-red-500' : ''}`}
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-4">
-                                                <button
-                                                    onClick={() => toggleFavorite(entry.id)}
-                                                    className={`text-2xl ${favorites.has(entry.id) ? 'text-yellow-400' : 'text-gray-600'}`}
-                                                >
-                                                    ⭐
-                                                </button>
-                                                <div>
-                                                    <div className="text-xl font-bold">
-                                                        {entry.firstName} {entry.lastName}
-                                                    </div>
-                                                    <div className="text-gray-400">
-                                                        {entry.clubName} · {getClassName(entry.classId)}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className={`text-3xl font-mono font-bold ${entry.resultStatus === 'mp' ? 'text-red-400' : 'text-emerald-400'
-                                                    }`}>
-                                                    {formatTime(entry.totalTime)}
-                                                </div>
-                                                {entry.resultStatus === 'mp' && (
-                                                    <div className="text-sm text-red-400">FELSTÄMPLING</div>
-                                                )}
-                                                <div className="text-sm text-gray-500">
-                                                    {entry.finishTime && new Date(entry.finishTime).toLocaleTimeString('sv-SE')}
-                                                </div>
-                                            </div>
-                                        </div>
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    {/* Left Column */}
+                    <div className="lg:col-span-8 space-y-8">
+                        {view === 'events' && (
+                            <div className="space-y-4">
+                                {recentFinishes.length === 0 ? (
+                                    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-24 text-center shadow-2xl">
+                                        <div className="text-7xl mb-8 opacity-10">⏳</div>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Väntar på målgångar...</p>
                                     </div>
-                                ))
-                        )}
-                    </div>
-                )}
-
-                {/* EventFeed View - Advanced event stream */}
-                {view === 'feed' && (
-                    <div className="h-[calc(100vh-250px)]">
-                        <EventFeed
-                            events={resultsToEvents(data?.entries || [])}
-                            classes={(data?.classes || []).map((c: any) => ({ id: c.id, name: c.name }))}
-                            selectedClasses={selectedFeedClasses}
-                            onClassToggle={(classId) => {
-                                setSelectedFeedClasses(prev =>
-                                    prev.includes(classId)
-                                        ? prev.filter(id => id !== classId)
-                                        : [...prev, classId]
-                                );
-                            }}
-                            maxEvents={100}
-                        />
-                    </div>
-                )}
-
-                {/* Class View */}
-                {view === 'class' && (
-                    <div>
-                        {/* Class Selection */}
-                        <div className="flex gap-2 flex-wrap mb-4">
-                            {data?.classes.map((cls: any) => (
-                                <button
-                                    key={cls.id}
-                                    onClick={() => setSelectedClass(cls.id)}
-                                    className={`px-4 py-2 rounded-lg font-semibold ${selectedClass === cls.id
-                                        ? 'bg-emerald-600 text-white'
-                                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                                        }`}
-                                >
-                                    {cls.name}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Leaderboard */}
-                        <div className="bg-gray-800 rounded-xl overflow-hidden">
-                            <div className="p-4 border-b border-gray-700">
-                                <h2 className="text-xl font-bold">
-                                    {getClassName(selectedClass)} - Topp {classResults.length}
-                                </h2>
+                                ) : (
+                                    recentFinishes
+                                        .filter(e => !showFavoritesOnly || favorites.has(e.id))
+                                        .map((entry, index) => (
+                                            <div
+                                                key={entry.id}
+                                                className={`bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden group ${index === 0 ? 'ring-2 ring-emerald-500/50' : ''}`}
+                                            >
+                                                {index === 0 && <div className="absolute top-0 right-0 px-3 py-1 bg-emerald-500 text-white text-[8px] font-black uppercase tracking-widest rounded-bl-lg">Senast</div>}
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-4">
+                                                        <button
+                                                            onClick={() => toggleFavorite(entry.id)}
+                                                            className={`text-xl transition-all hover:scale-110 ${favorites.has(entry.id) ? 'grayscale-0' : 'grayscale opacity-20'}`}
+                                                        >
+                                                            ⭐
+                                                        </button>
+                                                        <div>
+                                                            <div className="text-lg font-black uppercase tracking-tight text-white group-hover:text-emerald-400 transition-colors">
+                                                                {entry.firstName} {entry.lastName}
+                                                            </div>
+                                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                                                {entry.clubName} · {getClassName(entry.classId)}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="text-2xl font-mono font-black text-emerald-400">
+                                                            {formatTime(entry.totalTime)}
+                                                        </div>
+                                                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                                                            {entry.finishTime && new Date(entry.finishTime).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))
+                                )}
                             </div>
-                            <div className="divide-y divide-gray-700">
-                                {classResults
-                                    .filter(e => !showFavoritesOnly || favorites.has(e.id))
-                                    .slice(0, 15)
-                                    .map((entry, index) => (
-                                        <div
-                                            key={entry.id}
-                                            className={`p-4 flex items-center justify-between ${index === 0 ? 'bg-yellow-500/10' :
-                                                index === 1 ? 'bg-gray-400/10' :
-                                                    index === 2 ? 'bg-orange-500/10' : ''
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-4">
-                                                <div className={`w-10 h-10 flex items-center justify-center rounded-full font-bold text-lg ${index === 0 ? 'bg-yellow-500 text-yellow-900' :
-                                                    index === 1 ? 'bg-gray-400 text-gray-900' :
-                                                        index === 2 ? 'bg-orange-500 text-orange-900' :
-                                                            'bg-gray-700 text-gray-300'
-                                                    }`}>
+                        )}
+
+                        {view === 'class' && (
+                            <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
+                                <div className="p-8 border-b border-slate-800 flex items-center justify-between">
+                                    <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                        {getClassName(selectedClass)} - Rekommenderad analys
+                                    </h2>
+                                    <div className="flex gap-2">
+                                        {data.classes.map((cls: any) => (
+                                            <button
+                                                key={cls.id}
+                                                onClick={() => setSelectedClass(cls.id)}
+                                                className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border transition-all ${selectedClass === cls.id ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}
+                                            >
+                                                {cls.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="divide-y divide-slate-800/50">
+                                    {classResults.slice(0, 15).map((entry, index) => (
+                                        <div key={entry.id} className="p-6 flex items-center justify-between hover:bg-slate-800/30 transition-colors">
+                                            <div className="flex items-center gap-6">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${index === 0 ? 'bg-yellow-500 text-yellow-950' : index === 1 ? 'bg-slate-400 text-slate-950' : index === 2 ? 'bg-orange-500 text-orange-950' : 'bg-slate-800 text-slate-500'}`}>
                                                     {index + 1}
                                                 </div>
-                                                <button
-                                                    onClick={() => toggleFavorite(entry.id)}
-                                                    className={favorites.has(entry.id) ? 'text-yellow-400' : 'text-gray-600'}
-                                                >
-                                                    ⭐
-                                                </button>
                                                 <div>
-                                                    <div className="font-bold">{entry.firstName} {entry.lastName}</div>
-                                                    <div className="text-sm text-gray-400">{entry.clubName}</div>
+                                                    <div className="font-black uppercase tracking-tight text-white">{entry.firstName} {entry.lastName}</div>
+                                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">{entry.clubName}</div>
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <div className="text-2xl font-mono font-bold text-emerald-400">
-                                                    {formatTime(entry.totalTime)}
-                                                </div>
-                                                {index > 0 && classResults[0] && (
-                                                    <div className="text-sm text-gray-500">
-                                                        +{formatTime(entry.totalTime - classResults[0].totalTime)}
-                                                    </div>
-                                                )}
+                                                <div className="text-xl font-mono font-black text-white">{formatTime(entry.totalTime)}</div>
+                                                {index > 0 && <div className="text-[10px] font-mono font-black text-slate-600">+{formatTime(entry.totalTime - classResults[0].totalTime)}</div>}
                                             </div>
                                         </div>
                                     ))}
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                )}
+                        )}
 
-                {/* Missing View */}
-                {view === 'missing' && (
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {missingRunners.length === 0 ? (
-                            <div className="col-span-full p-12 text-center text-gray-400 bg-gray-800 rounded-xl">
-                                <div className="text-6xl mb-4">✅</div>
-                                <p>Alla deltagare i mål!</p>
-                            </div>
-                        ) : (
-                            missingRunners
-                                .filter(e => !showFavoritesOnly || favorites.has(e.id))
-                                .map(entry => {
-                                    const isOverdue = entry.elapsed > 60 * 60 * 1000; // > 1 hour
-                                    const isCritical = entry.elapsed > 90 * 60 * 1000; // > 1.5 hours
-
-                                    return (
-                                        <div
-                                            key={entry.id}
-                                            className={`bg-gray-800 rounded-xl p-4 border-l-4 ${isCritical ? 'border-red-500 bg-red-900/20' :
-                                                isOverdue ? 'border-yellow-500 bg-yellow-900/20' :
-                                                    'border-gray-700'
-                                                }`}
-                                        >
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div className="font-bold">{entry.firstName} {entry.lastName}</div>
-                                                <button
-                                                    onClick={() => toggleFavorite(entry.id)}
-                                                    className={favorites.has(entry.id) ? 'text-yellow-400' : 'text-gray-600'}
-                                                >
-                                                    ⭐
-                                                </button>
+                        {view === 'missing' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {missingRunners.length === 0 ? (
+                                    <div className="col-span-full bg-slate-900 border border-slate-800 rounded-3xl p-24 text-center shadow-2xl">
+                                        <div className="text-7xl mb-8 opacity-10">🌲</div>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500">Alla deltagare ute i skogen har kommit i mål!</p>
+                                    </div>
+                                ) : (
+                                    missingRunners.map(entry => (
+                                        <div key={entry.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div>
+                                                    <div className="font-black uppercase tracking-tight text-white">{entry.firstName} {entry.lastName}</div>
+                                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">{entry.clubName}</div>
+                                                </div>
+                                                <div className="text-xl font-mono font-black text-emerald-500">{formatTime(entry.elapsed)}</div>
                                             </div>
-                                            <div className="text-sm text-gray-400 mb-2">
-                                                {entry.clubName} · {getClassName(entry.classId)}
-                                            </div>
-                                            <div className={`text-2xl font-mono font-bold ${isCritical ? 'text-red-400' :
-                                                isOverdue ? 'text-yellow-400' :
-                                                    'text-white'
-                                                }`}>
-                                                {formatTime(entry.elapsed)}
-                                            </div>
-                                            <div className="text-xs text-gray-500 mt-1">
-                                                Startade {entry.startTime && new Date(entry.startTime).toLocaleTimeString('sv-SE')}
+                                            <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+                                                <div className="h-full bg-emerald-500 animate-pulse" style={{ width: '60%' }}></div>
                                             </div>
                                         </div>
-                                    );
-                                })
+                                    ))
+                                )}
+                            </div>
                         )}
-                    </div>
-                )}
 
-                {/* Punch Input View */}
-                {view === 'input' && (
-                    <div className="max-w-xl mx-auto">
-                        <PunchInput
-                            entries={data?.entries || []}
-                            controls={[
-                                { code: '31', name: 'Start' },
-                                { code: '32' },
-                                { code: '33' },
-                                { code: '34' },
-                                { code: '35' },
-                                { code: '100', name: 'Mål' },
-                            ]}
-                            onPunch={(entryId, controlCode, time) => {
-                                // Save punch to localStorage
-                                const storedEvents = localStorage.getItem('events');
-                                if (storedEvents) {
-                                    const events = JSON.parse(storedEvents);
-                                    const eventIndex = events.findIndex((e: any) => e.id === eventId);
-                                    if (eventIndex >= 0) {
-                                        const entryIndex = events[eventIndex].entries?.findIndex((e: any) => e.id === entryId);
-                                        if (entryIndex >= 0) {
-                                            if (controlCode === '100' || controlCode.toLowerCase() === 'mål') {
-                                                events[eventIndex].entries[entryIndex].finishTime = time.toISOString();
-                                                events[eventIndex].entries[entryIndex].status = 'finished';
-                                            }
-                                            localStorage.setItem('events', JSON.stringify(events));
+                        {view === 'input' && (
+                            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl">
+                                <PunchInput
+                                    entries={data.entries}
+                                    controls={[
+                                        { code: '31', name: 'Start' },
+                                        { code: '32' },
+                                        { code: '33' },
+                                        { code: '34' },
+                                        { code: '35' },
+                                        { code: '100', name: 'Mål' },
+                                    ]}
+                                    onPunch={(entryId, code, time) => {
+                                        // Simple local update for demo
+                                        const entry = data.entries.find(e => e.id === entryId);
+                                        if (entry) {
+                                            entry.status = 'finished';
+                                            entry.finishTime = time.toISOString();
                                             loadData();
                                         }
-                                    }
-                                }
-                            }}
-                        />
-                        <div className="mt-4 p-4 bg-gray-800 rounded-xl text-sm text-gray-400">
-                            <p>💡 Tips: Använd kontrollkod <strong>100</strong> eller <strong>Mål</strong> för att registrera sluttid.</p>
+                                    }}
+                                />
+                            </div>
+                        )}
+
+                        {view === 'feed' && (
+                            <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl h-[600px]">
+                                <EventFeed
+                                    events={resultsToEvents(data.entries)}
+                                    classes={data.classes}
+                                    selectedClasses={selectedFeedClasses}
+                                    onClassToggle={(id) => setSelectedFeedClasses(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])}
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Right Column: Speaker Comments */}
+                    <div className="lg:col-span-4 space-y-8">
+                        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+                            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500"></div>
+                            <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6 flex items-center gap-2">
+                                <span className="text-white text-base">🎙️</span> Speaker Kommentar
+                            </h2>
+                            <textarea
+                                value={newComment}
+                                onChange={(e) => setNewComment(e.target.value)}
+                                placeholder="Publicera en uppdatering..."
+                                className="w-full h-32 bg-slate-950 border border-slate-800 rounded-2xl p-6 text-white font-medium focus:ring-2 focus:ring-emerald-500 outline-none transition-all placeholder-slate-700 resize-none"
+                            />
+                            <button
+                                onClick={handlePostComment}
+                                disabled={publishing || !newComment.trim()}
+                                className="w-full mt-4 py-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-emerald-900/40"
+                            >
+                                {publishing ? 'Publicerar...' : 'Sänd ut'}
+                            </button>
+                        </div>
+
+                        <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
+                            <div className="p-6 border-b border-slate-800">
+                                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Senaste sändningar</h3>
+                            </div>
+                            <div className="divide-y divide-slate-800/50 max-h-96 overflow-y-auto">
+                                {comments.map(comment => (
+                                    <div key={comment.id} className="p-4 group">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <span className="text-[10px] font-mono font-black text-slate-600">{new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                            <button onClick={() => handleDeleteComment(comment.id)} className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-500 transition-all text-xs">🗑️</button>
+                                        </div>
+                                        <p className="text-xs text-slate-300 leading-relaxed font-medium">{comment.text}</p>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
-                )}
+                </div>
+            </main>
 
-                {/* Quick Stats */}
-                <div className="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 py-3">
-                    <div className="max-w-7xl mx-auto px-4 flex justify-around text-center">
-                        <div>
-                            <div className="text-2xl font-bold text-blue-400">{data?.entries.length || 0}</div>
-                            <div className="text-xs text-gray-400">Anmälda</div>
+            {/* Bottom Stats Navigation */}
+            <div className="fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-xl border-t border-slate-800 z-50">
+                <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+                    <div className="flex gap-12">
+                        <div className="text-center">
+                            <div className="text-xl font-black text-white">{data.entries.length}</div>
+                            <div className="text-[8px] font-black uppercase tracking-widest text-slate-500">Deltagare</div>
                         </div>
-                        <div>
-                            <div className="text-2xl font-bold text-emerald-400">
-                                {data?.entries.filter(e => e.status === 'finished').length || 0}
-                            </div>
-                            <div className="text-xs text-gray-400">I mål</div>
+                        <div className="text-center">
+                            <div className="text-xl font-black text-emerald-500">{data.entries.filter(e => e.status === 'finished').length}</div>
+                            <div className="text-[8px] font-black uppercase tracking-widest text-slate-500">I Mål</div>
                         </div>
-                        <div>
-                            <div className="text-2xl font-bold text-yellow-400">{missingRunners.length}</div>
-                            <div className="text-xs text-gray-400">Kvar</div>
+                        <div className="text-center">
+                            <div className="text-xl font-black text-orange-500">{missingRunners.length}</div>
+                            <div className="text-[8px] font-black uppercase tracking-widest text-slate-500">Ute</div>
                         </div>
-                        <div>
-                            <div className="text-2xl font-bold text-red-400">
-                                {data?.entries.filter(e => e.resultStatus === 'mp').length || 0}
-                            </div>
-                            <div className="text-xs text-gray-400">Felst.</div>
-                        </div>
+                    </div>
+                    <div className="text-right">
+                        <div className="text-2xl font-mono font-black text-white">{currentTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
+                        <div className="text-[8px] font-black uppercase tracking-widest text-emerald-500 animate-pulse">Live Sync Active</div>
                     </div>
                 </div>
             </div>

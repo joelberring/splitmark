@@ -146,3 +146,56 @@ export async function fetchClubCompetitors(apiKey: string, organisationId: strin
         defaultClass: c.DefaultClass?.EventClassId?._text || undefined,
     }));
 }
+/**
+ * Fetch results for a specific club within a date range
+ */
+export async function fetchClubResults(apiKey: string, organisationId: string, fromDate: string, toDate: string): Promise<any[]> {
+    const response = await fetch(
+        `${EVENTOR_API_BASE}/results/organisation?organisationId=${organisationId}&fromDate=${fromDate}&toDate=${toDate}`,
+        { headers: { 'ApiKey': apiKey } }
+    );
+
+    if (!response.ok) {
+        throw new Error(`Eventor API error: ${response.status}`);
+    }
+
+    const xml = await response.text();
+    const parsed = parser.parse(xml);
+
+    const resultList = parsed.ResultListList?.ResultList;
+    if (!resultList) return [];
+
+    const lists = Array.isArray(resultList) ? resultList : [resultList];
+    const results: any[] = [];
+
+    lists.forEach((list: any) => {
+        const event = {
+            id: list.Event?.EventId?._text || list.Event?.EventId || '',
+            name: list.Event?.Name?._text || list.Event?.Name || '',
+            date: list.Event?.StartDate?.Date?._text || list.Event?.StartDate?.Date || '',
+        };
+
+        const classResults = Array.isArray(list.ClassResult) ? list.ClassResult : [list.ClassResult];
+        classResults.forEach((cr: any) => {
+            if (!cr) return;
+            const className = cr.EventClass?.Name?._text || cr.EventClass?.Name || '';
+            const personResults = Array.isArray(cr.PersonResult) ? cr.PersonResult : [cr.PersonResult];
+
+            personResults.forEach((pr: any) => {
+                if (!pr) return;
+                results.push({
+                    eventId: event.id,
+                    eventName: event.name,
+                    eventDate: event.date,
+                    className,
+                    personName: `${pr.Person?.PersonName?.Given?._text || pr.Person?.PersonName?.Given} ${pr.Person?.PersonName?.Family?._text || pr.Person?.PersonName?.Family}`,
+                    position: pr.Result?.ResultPosition?._text || pr.Result?.ResultPosition || undefined,
+                    time: pr.Result?.Time?._text || pr.Result?.Time || undefined,
+                    status: pr.Result?.CompetitorStatus?.['@_status'] || pr.Result?.CompetitorStatus?._text || 'OK',
+                });
+            });
+        });
+    });
+
+    return results;
+}

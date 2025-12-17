@@ -216,86 +216,77 @@ export default function ImportTestDataPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
-            <div className="max-w-2xl mx-auto">
-                <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-6">
-                    📥 Importera Testdata
+        <div className="min-h-screen bg-slate-950 p-8">
+            <div className="max-w-4xl mx-auto">
+                <h1 className="text-3xl font-black uppercase tracking-tight text-white mb-6">
+                    Test Import
                 </h1>
 
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-6">
-                    <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4">
-                        Älvsjö Night Sprint - Testdata
+                <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-8 mb-8 relative overflow-hidden">
+                    <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500"></div>
+                    <h2 className="text-xl font-black uppercase tracking-tight text-white mb-4">
+                        Testdata (Älvsjö Night Sprint)
                     </h2>
-                    <p className="text-gray-600 dark:text-gray-400 mb-6">
-                        Laddar data från testtävling/äns-mappen:
+                    <p className="text-slate-400 font-medium mb-8">
+                        Klicka på knappen nedan för att ladda in den fördefinierade testtävlingen (XML-filer i /public/test-tävling).
                     </p>
-                    <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-2 mb-6">
-                        <li>• <strong>Resultat:</strong> resultat äns ver2.xml (IOF XML 3.0)</li>
-                        <li>• <strong>Banor:</strong> ÄNS 20251202.xml (Purple Pen export)</li>
-                        <li>• <strong>Karta:</strong> karta_bildfil.png (40 MB)</li>
-                        <li>• <strong>Georef:</strong> karta_bildfil.pgw (SWEREF99 TM)</li>
+                    <ul className="text-xs font-black uppercase tracking-widest text-slate-500 space-y-2 mb-8">
+                        <li>• Inkluderar resultat (IOF XML 3.0)</li>
+                        <li>• Inkluderar banor & kontroller</li>
+                        <li>• Inkluderar georefererad karta</li>
                     </ul>
 
-                    {status === 'idle' && (
-                        <button
-                            onClick={loadTestData}
-                            className="w-full px-6 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg font-bold text-lg hover:from-emerald-600 hover:to-teal-600 transition-all"
-                        >
-                            Importera testdata
-                        </button>
-                    )}
-
-                    {status === 'loading' && (
-                        <div className="flex items-center justify-center gap-3 py-4">
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-500"></div>
-                            <span className="text-gray-600 dark:text-gray-400">{message}</span>
-                        </div>
-                    )}
-
-                    {status === 'success' && (
-                        <div className="space-y-4">
-                            <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4">
-                                <p className="text-emerald-700 dark:text-emerald-300 font-semibold">
-                                    ✅ {message}
-                                </p>
-                            </div>
-                            {importedEventId && (
-                                <div className="flex gap-3">
-                                    <Link
-                                        href={`/admin/events/${importedEventId}`}
-                                        className="flex-1 px-4 py-3 bg-emerald-500 text-white rounded-lg font-semibold text-center"
-                                    >
-                                        Öppna i Admin
-                                    </Link>
-                                    <Link
-                                        href={`/events/${importedEventId}`}
-                                        className="flex-1 px-4 py-3 bg-blue-500 text-white rounded-lg font-semibold text-center"
-                                    >
-                                        Visa tävling
-                                    </Link>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {status === 'error' && (
-                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                            <p className="text-red-700 dark:text-red-300">
-                                ❌ {message}
-                            </p>
+                    <div className="flex items-center justify-between">
+                        {status === 'idle' && (
                             <button
-                                onClick={() => setStatus('idle')}
-                                className="mt-3 px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg"
+                                onClick={loadTestData}
+                                className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-emerald-900/40"
                             >
-                                Försök igen
+                                Starta Import
                             </button>
-                        </div>
-                    )}
+                        )}
+
+                        {status === 'loading' && (
+                            <div className="flex items-center gap-3">
+                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-emerald-500"></div>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500">{message}</span>
+                            </div>
+                        )}
+
+                        {status === 'success' && (
+                            <div className="flex gap-4">
+                                <Link
+                                    href={`/admin/events/${importedEventId}`}
+                                    className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border border-slate-700"
+                                >
+                                    Admin
+                                </Link>
+                                <Link
+                                    href={`/events/${importedEventId}`}
+                                    className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg shadow-emerald-900/40"
+                                >
+                                    Resultat
+                                </Link>
+                            </div>
+                        )}
+                    </div>
                 </div>
+
+                {status === 'error' && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 mb-8 flex items-center justify-between">
+                        <p className="text-red-400 text-xs font-bold">{message}</p>
+                        <button
+                            onClick={() => setStatus('idle')}
+                            className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
+                        >
+                            Försök igen
+                        </button>
+                    </div>
+                )}
 
                 <Link
                     href="/admin"
-                    className="text-emerald-600 hover:underline"
+                    className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-emerald-400 transition-colors"
                 >
                     ← Tillbaka till Admin
                 </Link>

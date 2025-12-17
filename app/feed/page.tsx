@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import BottomNavigation from '@/components/BottomNavigation';
 import ActivityFeed, { Activity, generateDemoActivities } from '@/components/Feed/ActivityFeed';
 import { useAuthState } from '@/lib/auth/hooks';
+import { getPublishedEvents, type FirestoreEvent } from '@/lib/firestore/events';
+import { addKudos, removeKudos, subscribeToKudos } from '@/lib/firestore/social';
 
 interface FeedEvent {
     id: string;
@@ -16,97 +18,128 @@ interface FeedEvent {
     type: 'new_event' | 'results_published' | 'registration_open';
 }
 
-const DEMO_FEED_EVENTS: FeedEvent[] = [
-    {
-        id: 'ans-2025',
-        name: 'Älvsjö Night Sprint',
-        date: '2025-12-02',
-        location: 'Älvsjö, Stockholm',
-        type: 'results_published',
-    },
-    {
-        id: 'demo-event-1',
-        name: 'Vårsprånget 2025',
-        date: '2025-03-15',
-        location: 'Lunsen, Uppsala',
-        type: 'registration_open',
-    },
-];
-
 export default function FeedPage() {
     const { user } = useAuthState();
     const [activities, setActivities] = useState<Activity[]>([]);
+    const [feedEvents, setFeedEvents] = useState<FeedEvent[]>([]);
     const [filter, setFilter] = useState<'all' | 'friends' | 'mine'>('all');
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Load demo activities + generate from test event
-        const loadActivities = async () => {
+        const loadContent = async () => {
             try {
-                // Start with demo activities
+                // Fetch events from Firestore
+                const events = await getPublishedEvents();
+
+                // 1. Process "New Events" / "News" list
+                const news: FeedEvent[] = events.map(e => ({
+                    id: e.id,
+                    name: e.name,
+                    date: e.date,
+                    location: e.location || 'Okänd plats',
+                    type: e.status === 'completed' ? 'results_published' : 'registration_open' // Simplification
+                }));
+                // Sort by date desc (already sorted by query usually, but failsafe)
+                setFeedEvents(news);
+
+                // 2. Generate Activities from Completed Events
+                const completedEvents = events.filter(e => e.status === 'completed' && e.results && e.results.length > 0);
+
+                let firestoreActivities: Activity[] = [];
+
+                completedEvents.forEach(event => {
+                    const eventDate = new Date(`${event.date}T${event.time || '10:00'}`);
+
+                    // Take top 10 results from each event or all? Let's take a sample.
+                    // If we have real data, we might want all of them properly sorted.
+                    // For now, let's map ALL results to activities.
+                    const eventActs = (event.results || []).map((res, idx) => ({
+                        id: `act-${event.id}-${res.entryId || idx}`,
+                        userId: res.personId || `user-fake-${idx}`,
+                        userName: res.name,
+                        eventName: event.name,
+                        eventId: event.id,
+                        courseName: res.className || '',
+                        date: eventDate, // Or result timestamp if we had it
+                        duration: res.time, // Seconds
+                        distance: 0, // We assume 0 or random if not in result
+                        resultStatus: (res.status?.toLowerCase() || 'ok') as 'ok' | 'mp' | 'dnf',
+                        position: res.position,
+                        totalInClass: 0, // We could calc this
+                        className: res.className,
+                        kudos: Math.floor(Math.random() * 5),
+                        comments: 0
+                    }));
+                    firestoreActivities = [...firestoreActivities, ...eventActs];
+                });
+
+                // If no real data, fallback to demo/mixed
                 const demoActivities = generateDemoActivities();
-                
-                // Fetch test event results and create activity entries
-                const res = await fetch('/api/test-event');
-                const data = await res.json();
-                
-                if (data.success && data.data.resultat) {
-                    // Parse a few results to show as activities
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(data.data.resultat, 'text/xml');
-                    const results = doc.querySelectorAll('PersonResult');
-                    
-                    const eventActivities: Activity[] = [];
-                    const topResults = Array.from(results).slice(0, 5);
-                    
-                    topResults.forEach((result, idx) => {
-                        const personName = result.querySelector('Person Name Given')?.textContent + ' ' + 
-                                         result.querySelector('Person Name Family')?.textContent;
-                        const org = result.querySelector('Organisation Name')?.textContent || 'Okänd klubb';
-                        const time = result.querySelector('Result Time')?.textContent;
-                        const timeSeconds = time ? parseTimeToSeconds(time) : 0;
-                        const className = result.closest('ClassResult')?.querySelector('Class Name')?.textContent || '';
-                        
-                        eventActivities.push({
-                            id: `ans-activity-${idx}`,
-                            userId: `user-ans-${idx}`,
-                            userName: personName?.trim() || 'Okänd',
-                            eventName: 'Älvsjö Night Sprint',
-                            eventId: 'ans-2025',
-                            courseName: className,
-                            date: new Date('2025-12-02'),
-                            duration: timeSeconds,
-                            distance: 3200 + Math.random() * 1000,
-                            resultStatus: 'ok',
-                            position: idx + 1,
-                            totalInClass: 20,
-                            className,
-                            kudos: Math.floor(Math.random() * 20),
-                            comments: Math.floor(Math.random() * 5),
-                        });
-                    });
-                    
-                    setActivities([...eventActivities, ...demoActivities]);
-                } else {
-                    setActivities(demoActivities);
-                }
+
+                // Sort all activities by date desc
+                const allActivities = [...firestoreActivities, ...demoActivities].sort((a, b) => b.date.getTime() - a.date.getTime());
+
+                setActivities(allActivities);
+
             } catch (error) {
-                console.error('Failed to load activities:', error);
+                console.error('Failed to load feed:', error);
                 setActivities(generateDemoActivities());
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         };
-        
-        loadActivities();
+
+        loadContent();
     }, []);
 
-    const handleKudos = (activityId: string) => {
-        setActivities(prev => prev.map(a => 
-            a.id === activityId 
+    // Subscribe to kudos updates
+    useEffect(() => {
+        if (activities.length === 0) return;
+
+        const activityIds = activities.map(a => a.id);
+        const unsubscribe = subscribeToKudos(activityIds, (kudosMap) => {
+            setActivities(prev => prev.map(a => {
+                const kudosData = kudosMap.get(a.id);
+                if (!kudosData) return a;
+                return {
+                    ...a,
+                    kudos: kudosData.count,
+                    hasKudoed: user?.uid ? kudosData.userIds.includes(user.uid) : false
+                };
+            }));
+        });
+
+        return () => unsubscribe();
+    }, [activities.length, user?.uid]);
+
+    const handleKudos = useCallback(async (activityId: string) => {
+        if (!user?.uid) {
+            // Optimistic update for anonymous users (client-side only)
+            setActivities(prev => prev.map(a =>
+                a.id === activityId
+                    ? { ...a, kudos: a.hasKudoed ? a.kudos - 1 : a.kudos + 1, hasKudoed: !a.hasKudoed }
+                    : a
+            ));
+            return;
+        }
+
+        const activity = activities.find(a => a.id === activityId);
+        if (!activity) return;
+
+        // Optimistic update
+        setActivities(prev => prev.map(a =>
+            a.id === activityId
                 ? { ...a, kudos: a.hasKudoed ? a.kudos - 1 : a.kudos + 1, hasKudoed: !a.hasKudoed }
                 : a
         ));
-    };
+
+        // Persist to Firestore
+        if (activity.hasKudoed) {
+            await removeKudos(activityId, user.uid);
+        } else {
+            await addKudos(activityId, user.uid, user.displayName || undefined);
+        }
+    }, [activities, user]);
 
     return (
         <div className="min-h-screen flex flex-col bg-slate-950 text-white pb-20">
@@ -117,36 +150,39 @@ export default function FeedPage() {
                 <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">
                     Senaste nyheter
                 </h2>
-                <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-                    {DEMO_FEED_EVENTS.map(event => (
-                        <Link
-                            key={event.id}
-                            href={event.id === 'ans-2025' ? '/test-event' : `/events/${event.id}`}
-                            className="flex-shrink-0 w-64 bg-slate-900 rounded-xl overflow-hidden border border-slate-800 hover:border-emerald-500/50 transition-all group"
-                        >
-                            <div className="h-24 bg-gradient-to-br from-emerald-900/50 to-slate-900 flex items-center justify-center">
-                                <span className="text-4xl opacity-50">
-                                    {event.type === 'results_published' ? '🏆' : '📅'}
-                                </span>
-                            </div>
-                            <div className="p-3">
-                                <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mb-2 ${
-                                    event.type === 'results_published' 
+                {feedEvents.length > 0 ? (
+                    <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+                        {feedEvents.map(event => (
+                            <Link
+                                key={event.id}
+                                href={`/spectate/${event.id}`} // Unified route
+                                className="flex-shrink-0 w-64 bg-slate-900 rounded-xl overflow-hidden border border-slate-800 hover:border-emerald-500/50 transition-all group"
+                            >
+                                <div className="h-24 bg-gradient-to-br from-emerald-900/50 to-slate-900 flex items-center justify-center">
+                                    <span className="text-4xl opacity-50">
+                                        {event.type === 'results_published' ? '🏆' : '📅'}
+                                    </span>
+                                </div>
+                                <div className="p-3">
+                                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mb-2 ${event.type === 'results_published'
                                         ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-800/50'
                                         : 'bg-blue-900/30 text-blue-400 border border-blue-800/50'
-                                }`}>
-                                    {event.type === 'results_published' ? 'Resultat' : 'Anmälan öppen'}
-                                </span>
-                                <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors">
-                                    {event.name}
-                                </h3>
-                                <p className="text-xs text-slate-500 mt-1">
-                                    📍 {event.location}
-                                </p>
-                            </div>
-                        </Link>
-                    ))}
-                </div>
+                                        }`}>
+                                        {event.type === 'results_published' ? 'Resultat' : 'Anmälan öppen'}
+                                    </span>
+                                    <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors">
+                                        {event.name}
+                                    </h3>
+                                    <p className="text-xs text-slate-500 mt-1">
+                                        📍 {event.location}
+                                    </p>
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-sm text-slate-500 italic">Inga nyheter just nu...</p>
+                )}
             </section>
 
             {/* Activity Feed */}
@@ -154,7 +190,7 @@ export default function FeedPage() {
                 <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 px-4">
                     Aktivitet från vänner och klubbmedlemmar
                 </h2>
-                
+
                 {loading ? (
                     <div className="flex justify-center py-12">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>

@@ -52,6 +52,8 @@ export default function SpectateEventPage() {
     const [availableClasses, setAvailableClasses] = useState<string[]>([]);
     const [eventName, setEventName] = useState('Laddar...');
     const [organizer, setOrganizer] = useState('');
+    const [eventStatus, setEventStatus] = useState<'active' | 'completed' | 'draft'>('active');
+    const [eventDate, setEventDate] = useState('');
 
     // Initialize map
     useEffect(() => {
@@ -75,6 +77,7 @@ export default function SpectateEventPage() {
     // Mock data
     // Load event data from Firestore
     useEffect(() => {
+        // Load event data from Firestore
         import('@/lib/firestore/events').then(({ getEvent, subscribeToEvents }) => {
             // Initial fetch
             getEvent(eventId).then(event => {
@@ -83,8 +86,7 @@ export default function SpectateEventPage() {
                 }
             });
 
-            // Subscribe to updates (using list subscription for now as we don't have single doc sub yet)
-            // Ideally we should add subscribeToEvent(id) in the service
+            // Subscribe to updates
             const unsubscribe = subscribeToEvents((events) => {
                 const event = events.find(e => e.id === eventId);
                 if (event) {
@@ -94,21 +96,51 @@ export default function SpectateEventPage() {
 
             return () => unsubscribe();
         });
+
+        // Subscribe to speaker messages
+        import('@/lib/firestore/speaker').then(({ subscribeToSpeakerMessages }) => {
+            const unsubscribe = subscribeToSpeakerMessages(eventId, (messages) => {
+                const comments: SpeakerComment[] = messages.map(msg => ({
+                    id: msg.id,
+                    text: msg.message,
+                    timestamp: msg.timestamp,
+                    highlight: msg.type === 'highlight'
+                }));
+                setComments(comments);
+            });
+            return () => unsubscribe();
+        });
     }, [eventId]);
 
     const processEventData = (event: any) => {
         const colors = ['#10B981', '#EF4444', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899'];
 
-        // Update header info (using DOM manipulation for simplicity or state if refactored)
-        // For now just processing lists
-
         setEventName(event.name);
-        setOrganizer(event.organizer || 'Arrangör');
+        setOrganizer(event.organizer || event.location || 'Arrangör');
+        setEventStatus(event.status || 'active');
+        setEventDate(event.date || '');
 
         if (event.classes) {
             setAvailableClasses(event.classes.map((c: any) => c.name));
         }
 
+        // For completed events with results array, process those
+        if (event.status === 'completed' && event.results && event.results.length > 0) {
+            const newResults: ResultEntry[] = event.results.map((r: any, idx: number) => ({
+                id: r.entryId || `result-${idx}`,
+                name: r.name,
+                club: r.club || '',
+                className: r.className || '',
+                time: formatTimeSeconds(r.time),
+                position: r.position || idx + 1,
+                timestamp: new Date()
+            }));
+            setResults(newResults);
+            setRunners([]); // No live runners for completed events
+            return;
+        }
+
+        // For active events, process entries
         if (event.entries) {
             const newRunners: Runner[] = event.entries
                 .filter((e: any) => e.status === 'started' || e.status === 'registered')
@@ -117,18 +149,15 @@ export default function SpectateEventPage() {
                     name: e.name,
                     club: e.club,
                     className: e.className || e.classId || '',
-                    // Simulate position around event center (Stockholm)
-                    // In real app, this would come from a tracking sub-collection
                     position: {
                         lat: 59.3293 + (Math.random() - 0.5) * 0.01,
                         lng: 18.0686 + (Math.random() - 0.5) * 0.01
                     },
                     lastUpdate: new Date(),
-                    status: e.status === 'started' ? 'running' : 'dnf', // map registered to dnf for visual distinctness? no, map logic only shows 'started' usually.
-                    // Let's treat 'started' as running.
+                    status: e.status === 'started' ? 'running' : 'dnf',
                     color: colors[idx % colors.length]
                 }))
-                .filter((r: Runner) => r.status === 'running' || true); // Keep all for list
+                .filter((r: Runner) => r.status === 'running' || true);
 
             setRunners(newRunners);
 
@@ -139,12 +168,23 @@ export default function SpectateEventPage() {
                     name: e.name,
                     club: e.club,
                     className: e.className || e.classId || '',
-                    time: e.startTime ? '--:--' : '00:00', // Placeholder time calculation
+                    time: e.startTime ? '--:--' : '00:00',
                     position: idx + 1,
                     timestamp: new Date()
                 }));
             setResults(newResults);
         }
+    };
+
+    const formatTimeSeconds = (seconds: number): string => {
+        if (!seconds || seconds === 0) return '--:--';
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        if (h > 0) {
+            return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+        return `${m}:${s.toString().padStart(2, '0')}`;
     };
 
     // Update runner positions
@@ -230,10 +270,16 @@ export default function SpectateEventPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-2 bg-red-900/30 px-3 py-1 rounded border border-red-800/50">
-                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                        <span className="text-red-400 text-xs font-bold uppercase tracking-wider">Live</span>
-                    </div>
+                    {eventStatus === 'completed' ? (
+                        <div className="flex items-center gap-2 bg-emerald-900/30 px-3 py-1 rounded border border-emerald-800/50">
+                            <span className="text-emerald-400 text-xs font-bold uppercase tracking-wider">🏆 Avslutat</span>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 bg-red-900/30 px-3 py-1 rounded border border-red-800/50">
+                            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                            <span className="text-red-400 text-xs font-bold uppercase tracking-wider">Live</span>
+                        </div>
+                    )}
                 </div>
             </header>
 
@@ -256,10 +302,54 @@ export default function SpectateEventPage() {
 
             {/* Main content */}
             <div className="flex-1 flex relative overflow-hidden">
-                {/* Map */}
-                <div className="flex-1 relative">
-                    <div ref={mapContainer} className="absolute inset-0" />
-                </div>
+                {eventStatus === 'completed' ? (
+                    /* Results Table for Completed Events */
+                    <div className="flex-1 overflow-y-auto p-4">
+                        <div className="max-w-4xl mx-auto">
+                            <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
+                                <table className="w-full">
+                                    <thead className="bg-slate-800/50">
+                                        <tr>
+                                            <th className="px-3 py-2 text-left text-[10px] font-bold text-slate-400 uppercase w-12">Plac</th>
+                                            <th className="px-3 py-2 text-left text-[10px] font-bold text-slate-400 uppercase">Namn</th>
+                                            <th className="px-3 py-2 text-left text-[10px] font-bold text-slate-400 uppercase">Klubb</th>
+                                            <th className="px-3 py-2 text-left text-[10px] font-bold text-slate-400 uppercase">Klass</th>
+                                            <th className="px-3 py-2 text-right text-[10px] font-bold text-slate-400 uppercase">Tid</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-800">
+                                        {results
+                                            .filter(r => selectedClasses.length === 0 || selectedClasses.includes(r.className))
+                                            .map((r, i) => (
+                                                <tr key={r.id} className={`hover:bg-slate-800/50 ${i === 0 ? 'bg-emerald-900/10' : ''}`}>
+                                                    <td className="px-3 py-2">
+                                                        <span className={`font-bold ${i === 0 ? 'text-emerald-400' : i === 1 ? 'text-slate-300' : i === 2 ? 'text-amber-600' : 'text-slate-500'}`}>
+                                                            {r.position}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-3 py-2 font-bold text-white">{r.name}</td>
+                                                    <td className="px-3 py-2 text-slate-400 text-sm">{r.club}</td>
+                                                    <td className="px-3 py-2 text-slate-400 text-sm">{r.className}</td>
+                                                    <td className="px-3 py-2 text-right font-mono text-white">{r.time}</td>
+                                                </tr>
+                                            ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {results.length === 0 && (
+                                <div className="text-center py-12 text-slate-500">
+                                    <div className="text-4xl mb-2 opacity-50">🏆</div>
+                                    <p>Inga resultat tillgängliga</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    /* Live Map for Active Events */
+                    <div className="flex-1 relative">
+                        <div ref={mapContainer} className="absolute inset-0" />
+                    </div>
+                )}
 
                 {/* Side panel */}
                 <div className="w-80 bg-slate-900/95 border-l border-slate-800 flex flex-col">

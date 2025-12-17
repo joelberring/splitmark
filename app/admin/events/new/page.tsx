@@ -12,7 +12,8 @@ export default function NewEventPage() {
         type: 'individual' as 'individual' | 'relay' | 'rogaining',
         classification: 'club' as 'club' | 'district' | 'national',
         description: '', entryDeadline: '', maxParticipants: '',
-        siCardRequired: true, visibility: 'public' as 'public' | 'club_only' | 'draft',
+        siCardRequired: true, visibility: 'public' as 'public' | 'club' | 'draft',
+        clubId: '',
     });
     const [saving, setSaving] = useState(false);
 
@@ -20,7 +21,24 @@ export default function NewEventPage() {
         e.preventDefault();
         if (!formData.name || !formData.date) { alert('Namn och datum krävs'); return; }
         setSaving(true);
-        const newEvent = { id: `event-${Date.now()}`, ...formData, createdAt: new Date().toISOString(), createdBy: 'dev-super-admin', status: 'planned', classes: [], entries: [] };
+
+        // Get user club if visibility is club
+        let clubId = formData.clubId;
+        if (formData.visibility === 'club' && !clubId) {
+            const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+            clubId = userProfile.clubId;
+        }
+
+        const newEvent = {
+            id: `event-${Date.now()}`,
+            ...formData,
+            clubId,
+            createdAt: new Date().toISOString(),
+            createdBy: 'dev-super-admin',
+            status: 'planned',
+            classes: [],
+            entries: []
+        };
         const existingEvents = JSON.parse(localStorage.getItem('events') || '[]');
         existingEvents.push(newEvent);
         localStorage.setItem('events', JSON.stringify(existingEvents));
@@ -108,7 +126,7 @@ export default function NewEventPage() {
                                 <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Synlighet</label>
                                 <select value={formData.visibility} onChange={(e) => setFormData({ ...formData, visibility: e.target.value as any })} className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white">
                                     <option value="public">Publik - Alla kan se</option>
-                                    <option value="club_only">Endast klubb</option>
+                                    <option value="club">Endast klubb</option>
                                     <option value="draft">Utkast</option>
                                 </select>
                             </div>

@@ -59,8 +59,10 @@ export default function MigratePage() {
                 // Our FirestoreEvent.courses expects a certain structure, ImportedCourse matches generally
                 eventData.courses = parsedCourses.courses.map(c => ({
                     ...c,
+                    length: c.length || 0,
+                    climb: c.climb || 0,
                     controls: c.controls // ID strings
-                }));
+                })) as any;
                 // We might want to store controls separately or embedded. 
                 // For simplicity, let's just ignore raw controls list for now or store it if we added a field.
                 // The current Firestore schema didn't explicitly add 'controls' list to root, but courses references them.

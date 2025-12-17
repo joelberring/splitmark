@@ -5,61 +5,60 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import BottomNavigation from '@/components/BottomNavigation';
-import { findClubById, type Club } from '@/types/clubs';
+import { useAuthState } from '@/lib/auth/hooks';
 
-interface ClubPost {
+interface Club {
     id: string;
-    type: 'announcement' | 'training' | 'event' | 'chat';
-    author: string;
-    content: string;
-    timestamp: string;
-    likes: number;
+    name: string;
+    shortName?: string;
 }
 
-interface ChatMessage {
-    id: string;
-    author: string;
-    content: string;
-    timestamp: string;
+interface ClubResult {
+    eventId: string;
+    eventName: string;
+    eventDate: string;
+    className: string;
+    personName: string;
+    position?: string;
+    time?: string;
+    status: string;
 }
 
-export default function ClubPage() {
-    const params = useParams();
-    const clubId = params.clubId as string;
-
+export default function ClubHomepage() {
+    const { clubId } = useParams() as { clubId: string };
+    const { user } = useAuthState();
     const [club, setClub] = useState<Club | null>(null);
-    const [activeTab, setActiveTab] = useState<'feed' | 'trainings' | 'live' | 'events' | 'chat' | 'info'>('feed');
-    const [posts, setPosts] = useState<ClubPost[]>([]);
-    const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-    const [newMessage, setNewMessage] = useState('');
+    const [results, setResults] = useState<ClubResult[]>([]);
+    const [activeTab, setActiveTab] = useState<'results' | 'activity' | 'info' | 'chat'>('results');
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const foundClub = findClubById(clubId);
-        setClub(foundClub || null);
-
-        const storedPosts = localStorage.getItem(`club-${clubId}-posts`);
-        if (storedPosts) {
-            setPosts(JSON.parse(storedPosts));
-        } else {
-            setPosts([
-                { id: '1', type: 'announcement', author: 'Styrelsen', content: 'Välkommen till klubbens sida i Splitmark!', timestamp: new Date().toISOString(), likes: 5 },
-                { id: '2', type: 'training', author: 'Träningsansvarig', content: 'Onsdagsträning denna vecka: Intervaller i Grimsta. Samling 18:00.', timestamp: new Date(Date.now() - 86400000).toISOString(), likes: 3 },
-            ]);
+        if (clubId) {
+            fetchClubData();
         }
-
-        const storedChat = localStorage.getItem(`club-${clubId}-chat`);
-        if (storedChat) setChatMessages(JSON.parse(storedChat));
-        setLoading(false);
     }, [clubId]);
 
-    const handleSendMessage = () => {
-        if (!newMessage.trim()) return;
-        const message: ChatMessage = { id: Date.now().toString(), author: 'Du', content: newMessage, timestamp: new Date().toISOString() };
-        const updated = [...chatMessages, message];
-        setChatMessages(updated);
-        localStorage.setItem(`club-${clubId}-chat`, JSON.stringify(updated));
-        setNewMessage('');
+    const fetchClubData = async () => {
+        setLoading(true);
+        try {
+            // Fetch club info
+            const clubRes = await fetch(`/api/eventor/clubs/${clubId}`);
+            if (clubRes.ok) {
+                const clubData = await clubRes.json();
+                setClub(clubData);
+            }
+
+            // Fetch results
+            const resultsRes = await fetch(`/api/eventor/results/${clubId}`);
+            if (resultsRes.ok) {
+                const resultsData = await resultsRes.json();
+                setResults(resultsData.results);
+            }
+        } catch (error) {
+            console.error('Failed to fetch club data:', error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     if (loading) {
@@ -72,216 +71,185 @@ export default function ClubPage() {
 
     if (!club) {
         return (
-            <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-                <div className="text-center">
-                    <div className="text-6xl mb-4 opacity-30">🏠</div>
-                    <h1 className="text-xl font-bold text-white mb-2">Klubb hittades inte</h1>
-                    <Link href="/profile" className="text-emerald-400 hover:underline">Välj din klubb i profilen →</Link>
-                </div>
+            <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+                <div className="text-6xl mb-6">🏚️</div>
+                <h1 className="text-2xl font-bold text-white mb-2">Klubben hittades inte</h1>
+                <p className="text-slate-500 mb-8">Vi kunde inte hitta organisationen du letar efter.</p>
+                <button onClick={() => window.history.back()} className="px-6 py-3 bg-slate-800 text-white rounded-xl font-bold uppercase tracking-widest text-xs">Gå tillbaka</button>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen flex flex-col bg-slate-950 text-white pb-24">
-            {/* Club Header */}
-            <header className="bg-gradient-to-b from-emerald-900/50 to-slate-900 border-b border-slate-800 px-4 py-6">
-                <Link href="/" className="text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-emerald-400 mb-4 inline-block">
-                    ← Tillbaka
-                </Link>
-                <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 bg-emerald-900/50 border border-emerald-700/50 rounded-xl flex items-center justify-center text-3xl">🏠</div>
-                    <div>
-                        <h1 className="text-2xl font-bold uppercase tracking-tight">{club.name}</h1>
-                        <p className="text-emerald-400 text-sm">{club.districtName}</p>
-                        {club.location && <p className="text-slate-500 text-xs">📍 {club.location}</p>}
+        <div className="min-h-screen bg-slate-950 text-white pb-20">
+            <PageHeader
+                title={club.name}
+                showLogo
+            />
+
+            {/* Club Banner/Header */}
+            <div className="relative h-32 bg-gradient-to-br from-emerald-600 to-emerald-900 border-b border-emerald-500/30 overflow-hidden">
+                <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+                <div className="absolute bottom-4 left-6 flex items-end gap-4">
+                    <div className="w-20 h-20 bg-slate-900 rounded-2xl border-4 border-slate-950 flex items-center justify-center text-3xl shadow-2xl">
+                        🏠
                     </div>
                 </div>
+            </div>
 
-                {/* Tabs */}
-                <nav className="flex gap-1 mt-4 -mb-6 overflow-x-auto">
-                    {[
-                        { id: 'feed', label: '📰 Flöde' },
-                        { id: 'trainings', label: '🏃 Träning' },
-                        { id: 'live', label: '📍 Live' },
-                        { id: 'events', label: '🏆 Tävlingar' },
-                        { id: 'chat', label: '💬 Chatt' },
-                        { id: 'info', label: 'ℹ️ Info' },
-                    ].map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
-                            className={`px-3 py-2 text-xs font-bold uppercase tracking-wider rounded-t-lg transition-colors ${activeTab === tab.id
-                                ? 'bg-slate-900 text-emerald-400 border-t border-l border-r border-slate-700'
-                                : 'text-slate-500 hover:text-white'
-                                }`}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
-                </nav>
-            </header>
+            {/* Tabs */}
+            <nav className="flex px-4 border-b border-slate-800 overflow-x-auto no-scrollbar bg-slate-950 sticky top-[64px] z-30">
+                <button
+                    onClick={() => setActiveTab('results')}
+                    className={`px-4 py-4 text-xs font-bold uppercase tracking-widest whitespace-nowrap border-b-2 transition-all ${activeTab === 'results' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-white'}`}
+                >
+                    Resultat
+                </button>
+                <button
+                    onClick={() => setActiveTab('activity')}
+                    className={`px-4 py-4 text-xs font-bold uppercase tracking-widest whitespace-nowrap border-b-2 transition-all ${activeTab === 'activity' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-white'}`}
+                >
+                    Aktivitet
+                </button>
+                <button
+                    onClick={() => setActiveTab('info')}
+                    className={`px-4 py-4 text-xs font-bold uppercase tracking-widest whitespace-nowrap border-b-2 transition-all ${activeTab === 'info' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-white'}`}
+                >
+                    Information
+                </button>
+                <button
+                    onClick={() => setActiveTab('chat')}
+                    className={`px-4 py-4 text-xs font-bold uppercase tracking-widest whitespace-nowrap border-b-2 transition-all ${activeTab === 'chat' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-white'}`}
+                >
+                    Chatt
+                </button>
+            </nav>
 
             {/* Content */}
-            <main className="flex-1 px-4 py-4 max-w-2xl mx-auto w-full">
-                {/* Feed Tab */}
-                {activeTab === 'feed' && (
-                    <div className="space-y-3">
-                        {posts.map(post => (
-                            <div key={post.id} className="bg-slate-900 rounded-xl p-4 border-l-4 border-emerald-500">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${post.type === 'announcement' ? 'bg-blue-900/30 text-blue-400 border border-blue-800/50' :
-                                        post.type === 'training' ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-800/50' :
-                                            'bg-purple-900/30 text-purple-400 border border-purple-800/50'
-                                        }`}>
-                                        {post.type === 'announcement' ? '📢 Nyhet' : post.type === 'training' ? '🏃 Träning' : '🏆 Tävling'}
-                                    </span>
-                                    <span className="text-xs text-slate-500">{post.author}</span>
-                                </div>
-                                <p className="text-slate-300">{post.content}</p>
-                                <div className="flex items-center justify-between mt-3 text-xs text-slate-500">
-                                    <span>{new Date(post.timestamp).toLocaleDateString('sv-SE')}</span>
-                                    <button className="flex items-center gap-1 hover:text-red-400">❤️ {post.likes}</button>
-                                </div>
+            <main className="p-4">
+                {activeTab === 'results' && (
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between mb-2">
+                            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">Senaste resultat</h2>
+                            <span className="text-[10px] text-slate-500 font-bold uppercase bg-slate-900 px-2 py-1 rounded border border-slate-800 font-mono">Last 30 days</span>
+                        </div>
+
+                        {results.length === 0 ? (
+                            <div className="bg-slate-900 rounded-2xl p-12 text-center border border-slate-800">
+                                <div className="text-4xl mb-4 opacity-30">🥈</div>
+                                <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Inga recenta resultat hittades</p>
                             </div>
-                        ))}
-                        {posts.length === 0 && (
-                            <div className="text-center py-12 text-slate-500 uppercase tracking-wide text-sm font-bold">Inga inlägg än</div>
+                        ) : (
+                            <div className="space-y-2">
+                                {results.map((res, i) => (
+                                    <div key={i} className="bg-slate-900 rounded-xl p-4 border border-slate-800 hover:bg-slate-800/50 transition-colors group">
+                                        <div className="flex items-baseline justify-between mb-1">
+                                            <span className="font-bold text-emerald-400 text-xs uppercase">{res.personName}</span>
+                                            <span className="text-slate-500 text-[10px] font-mono">{res.eventDate}</span>
+                                        </div>
+                                        <h3 className="text-white font-bold leading-tight group-hover:text-emerald-300 transition-colors">{res.eventName}</h3>
+                                        <div className="flex items-center gap-3 mt-2">
+                                            <span className="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 font-bold uppercase">{res.className}</span>
+                                            <span className="text-sm font-bold text-white">
+                                                {res.status === 'OK' ? (res.position ? `#${res.position}` : 'Godkänd') : res.status}
+                                            </span>
+                                            {res.time && <span className="text-sm font-mono text-emerald-500/80">{res.time}</span>}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </div>
                 )}
 
-                {/* Trainings Tab */}
-                {activeTab === 'trainings' && (
+                {activeTab === 'activity' && (
                     <div className="space-y-4">
-                        <div className="bg-slate-900 rounded-xl p-4 border border-slate-800">
-                            <h3 className="font-bold text-white mb-3 uppercase tracking-wide text-sm">🏃 Kommande träningar</h3>
-                            <div className="space-y-2">
-                                <div className="p-3 bg-emerald-950/30 rounded-lg border border-emerald-900/50">
-                                    <div className="font-bold text-emerald-400">Onsdagsträning</div>
-                                    <div className="text-xs text-slate-400">Onsdag 18:00 • Intervaller</div>
-                                </div>
-                                <div className="p-3 bg-slate-800/50 rounded-lg border border-slate-700">
-                                    <div className="font-bold text-slate-300">Lördagsträning</div>
-                                    <div className="text-xs text-slate-500">Lördag 10:00 • Långpass</div>
-                                </div>
-                            </div>
-                        </div>
-                        <Link href="/training" className="block bg-purple-600 text-white rounded-xl p-4 text-center font-bold uppercase tracking-widest hover:bg-purple-500 transition-colors">
-                            📊 Öppna Träningsloggen
-                        </Link>
-                    </div>
-                )}
-
-                {/* Events Tab */}
-                {activeTab === 'events' && (
-                    <div className="space-y-4">
-                        <div className="bg-slate-900 rounded-xl p-4 border border-slate-800">
-                            <h3 className="font-bold text-white mb-2 uppercase tracking-wide text-sm">🏆 Klubbens tävlingar</h3>
-                            <p className="text-slate-500 text-sm">Tävlingar där {club.name} arrangerar eller deltar.</p>
-                        </div>
-                        <Link href="/events" className="block bg-emerald-600 text-white rounded-xl p-4 text-center font-bold uppercase tracking-widest hover:bg-emerald-500 transition-colors">
-                            📅 Se alla tävlingar
-                        </Link>
-                    </div>
-                )}
-
-                {/* Live Tracking Tab */}
-                {activeTab === 'live' && (
-                    <div className="space-y-4">
-                        <div className="bg-slate-900 rounded-xl p-4 border border-slate-800">
-                            <h3 className="font-bold text-white mb-3 uppercase tracking-wide text-sm flex items-center gap-2">
-                                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                                Pågående aktiviteter
-                            </h3>
-                            <div className="space-y-2">
-                                <div className="bg-slate-800/50 rounded-lg p-3 border-l-4 border-emerald-500">
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <div className="font-bold text-white">Onsdagsträning</div>
-                                            <div className="text-xs text-slate-400">Lunsen, Uppsala</div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-lg font-bold text-white">8</span>
-                                            <span className="text-xs text-slate-500">aktiva</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-2 mt-2">
-                                        <Link href={`/club/${clubId}/live`} className="flex-1 text-center py-2 bg-emerald-600 text-white rounded text-xs font-bold uppercase tracking-wider hover:bg-emerald-500">
-                                            📍 Följ live
-                                        </Link>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="bg-slate-900 rounded-xl p-4 border border-slate-800">
-                            <h3 className="font-bold text-white mb-3 uppercase tracking-wide text-sm">Starta livetracking</h3>
-                            <p className="text-slate-500 text-sm mb-4">Aktivera GPS på din enhet för att dela din position under träning.</p>
-                            <button className="w-full py-3 bg-emerald-600 text-white rounded-lg font-bold uppercase tracking-widest hover:bg-emerald-500 transition-colors">
-                                🏃 Starta träning med live
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {/* Chat Tab */}
-                {activeTab === 'chat' && (
-                    <div className="flex flex-col h-[60vh]">
-                        <div className="flex-1 overflow-y-auto space-y-2 mb-4">
-                            {chatMessages.length === 0 ? (
-                                <div className="text-center py-12 text-slate-500">
-                                    <div className="text-4xl mb-2 opacity-30">💬</div>
-                                    <p className="uppercase tracking-wide text-sm font-bold">Inga meddelanden än</p>
-                                </div>
-                            ) : (
-                                chatMessages.map(msg => (
-                                    <div key={msg.id} className={`p-3 rounded-lg ${msg.author === 'Du' ? 'bg-emerald-600 text-white ml-8' : 'bg-slate-800 mr-8'
-                                        }`}>
-                                        <div className="flex items-center justify-between text-xs mb-1 opacity-70">
-                                            <span className="font-bold">{msg.author}</span>
-                                            <span>{new Date(msg.timestamp).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}</span>
-                                        </div>
-                                        <p>{msg.content}</p>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                value={newMessage}
-                                onChange={(e) => setNewMessage(e.target.value)}
-                                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                                placeholder="Skriv ett meddelande..."
-                                className="flex-1 px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500"
-                            />
-                            <button
-                                onClick={handleSendMessage}
-                                className="px-6 py-3 bg-emerald-600 text-white rounded-lg font-bold uppercase tracking-widest hover:bg-emerald-500"
+                        <div className="flex items-center justify-between mb-2">
+                            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">Klubbaktiviteter</h2>
+                            <Link
+                                href="/admin/events/new"
+                                className="text-[10px] bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold uppercase tracking-widest hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-900/20"
                             >
-                                Skicka
-                            </button>
+                                + Ny träning
+                            </Link>
+                        </div>
+
+                        {(() => {
+                            const storedEvents = JSON.parse(localStorage.getItem('events') || '[]');
+                            const clubEvents = storedEvents.filter((e: any) => e.clubId === clubId && e.visibility === 'club');
+
+                            if (clubEvents.length === 0) {
+                                return (
+                                    <div className="bg-slate-900 rounded-2xl p-12 text-center border border-slate-800 border-dashed">
+                                        <div className="text-4xl mb-4 opacity-30">🏃</div>
+                                        <h3 className="text-white font-bold mb-1">Inga interna aktiviteter</h3>
+                                        <p className="text-slate-500 text-xs">Här visas klubbträningar och interna event som inte syns för utomstående.</p>
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <div className="space-y-2">
+                                    {clubEvents.map((event: any) => (
+                                        <Link
+                                            key={event.id}
+                                            href={`/events/${event.id}`}
+                                            className="block bg-slate-900 rounded-xl p-4 border border-slate-800 hover:bg-slate-800/50 transition-all group"
+                                        >
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h3 className="font-bold text-white group-hover:text-emerald-400">{event.name}</h3>
+                                                <span className="text-[10px] bg-emerald-900/30 text-emerald-400 px-2 py-0.5 rounded border border-emerald-800/50 font-bold uppercase">Intern</span>
+                                            </div>
+                                            <div className="flex items-center gap-3 text-xs text-slate-500">
+                                                <span>📅 {event.date}</span>
+                                                <span>📍 {event.location}</span>
+                                            </div>
+                                        </Link>
+                                    ))}
+                                </div>
+                            );
+                        })()}
+                    </div>
+                )}
+
+                {activeTab === 'info' && (
+                    <div className="space-y-6">
+                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">Information & Anslagstavla</h2>
+                        <div className="grid gap-4">
+                            <div className="bg-blue-900/20 border border-blue-800/50 rounded-2xl p-6">
+                                <h3 className="text-blue-400 font-bold uppercase tracking-widest text-xs mb-2">💡 Välkommen</h3>
+                                <p className="text-slate-300 text-sm leading-relaxed">Välkommen till {club.name}s nya klubbsida. Här samlar vi allt som rör klubben, från resultat till interna träningar.</p>
+                            </div>
+
+                            <div className="bg-slate-900 rounded-xl p-4 border border-slate-800">
+                                <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">2025-12-17 · Info</div>
+                                <h3 className="text-white font-bold uppercase text-xs mb-2">Vinterserien startar!</h3>
+                                <p className="text-slate-400 text-sm">Nu drar vi igång årets vinterserie. Kolla kalendern för tider och platser.</p>
+                            </div>
                         </div>
                     </div>
                 )}
 
-                {/* Info Tab */}
-                {activeTab === 'info' && (
-                    <div className="space-y-4">
-                        <div className="bg-slate-900 rounded-xl p-4 border border-slate-800">
-                            <h3 className="font-bold text-white mb-3 uppercase tracking-wide text-sm">Om {club.name}</h3>
-                            <div className="space-y-2 text-slate-400 text-sm">
-                                <p>📍 <strong className="text-slate-300">Plats:</strong> {club.location || 'Ej angiven'}</p>
-                                <p>🏛️ <strong className="text-slate-300">Distrikt:</strong> {club.districtName}</p>
-                                {club.website && (
-                                    <p>🌐 <strong className="text-slate-300">Hemsida:</strong> <a href={club.website} className="text-emerald-400 hover:underline">{club.website}</a></p>
-                                )}
+                {activeTab === 'chat' && (
+                    <div className="flex flex-col h-[50vh] bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
+                        <div className="flex-1 p-4 overflow-y-auto space-y-4">
+                            <div className="text-center py-8">
+                                <div className="text-3xl mb-2 opacity-20">💬</div>
+                                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Börja chatta med medlemmarna</p>
                             </div>
                         </div>
-                        <div className="bg-blue-900/20 border border-blue-800/50 rounded-xl p-4">
-                            <h4 className="font-bold text-blue-400 mb-2 uppercase tracking-wide text-xs">📫 Kontakt</h4>
-                            <p className="text-xs text-blue-300/70">Kontaktuppgifter läggs till av klubbens administratörer.</p>
+                        <div className="p-4 bg-slate-950 border-t border-slate-800">
+                            <div className="flex gap-2">
+                                <input
+                                    className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                                    placeholder="Skriv ett meddelande..."
+                                />
+                                <button className="w-12 h-12 bg-emerald-600 text-white rounded-xl flex items-center justify-center hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-900/20">
+                                    <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5" stroke="currentColor" strokeWidth="2.5">
+                                        <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}

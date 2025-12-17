@@ -6,6 +6,8 @@ import { authManager } from '@/lib/auth/manager';
 import { useRouter } from 'next/navigation';
 import PageHeader from '@/components/PageHeader';
 import BottomNavigation from '@/components/BottomNavigation';
+import Link from 'next/link';
+import ClubSearch from '@/components/ClubSearch';
 import { CLUBS, DISTRICTS } from '@/types/clubs';
 
 const MALE_CLASSES = ['H10', 'H12', 'H14', 'H16', 'H18', 'H20', 'H21', 'H35', 'H40', 'H45', 'H50', 'H55', 'H60', 'H65', 'H70', 'H75', 'H80', 'H85'];
@@ -208,24 +210,26 @@ export default function ProfilePage() {
                                 />
                                 <span className="text-slate-300">Klubblös</span>
                             </label>
+
                             {!profile.clubless && (
-                                <select
-                                    value={profile.clubId || ''}
-                                    onChange={(e) => {
-                                        const club = CLUBS.find(c => c.id === e.target.value);
-                                        setProfile({ ...profile, clubId: e.target.value, club: club?.name || '' });
-                                    }}
-                                    className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
-                                >
-                                    <option value="">Välj klubb...</option>
-                                    {DISTRICTS.map(d => (
-                                        <optgroup key={d.id} label={d.name}>
-                                            {CLUBS.filter(c => c.districtId === d.id).map(c => (
-                                                <option key={c.id} value={c.id}>{c.name}</option>
-                                            ))}
-                                        </optgroup>
-                                    ))}
-                                </select>
+                                <div className="space-y-2">
+                                    <ClubSearch
+                                        selectedClubId={profile.clubId}
+                                        selectedClubName={profile.club}
+                                        onSelect={(id: string, name: string) => setProfile({ ...profile, clubId: id, club: name })}
+                                    />
+
+                                    {profile.clubId && (
+                                        <Link
+                                            href={`/club/${profile.clubId}`}
+                                            className="block p-4 bg-emerald-900/20 border border-emerald-800/50 rounded-xl text-center group hover:bg-emerald-900/30 transition-all"
+                                        >
+                                            <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-1">Kopplad till</div>
+                                            <div className="text-lg font-bold text-white group-hover:text-emerald-400">{profile.club}</div>
+                                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mt-2">Gå till klubbsidan →</div>
+                                        </Link>
+                                    )}
+                                </div>
                             )}
                         </div>
 

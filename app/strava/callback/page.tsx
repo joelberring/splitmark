@@ -49,57 +49,70 @@ function StravaCallbackContent() {
     }, [searchParams, router]);
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-red-50 dark:from-gray-900 dark:to-gray-800">
-            <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8">
+        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 relative overflow-hidden">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-orange-500/5 blur-[120px] rounded-full pointer-events-none"></div>
+
+            <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-10 relative z-10 text-center">
                 {status === 'loading' && (
-                    <div className="text-center">
-                        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-orange-500 mx-auto mb-6"></div>
-                        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">
-                            Ansluter till Strava...
-                        </h2>
-                        <p className="text-gray-600 dark:text-gray-400">
-                            Vänta medan vi kopplar ditt konto
-                        </p>
+                    <div className="space-y-8">
+                        <div className="relative w-20 h-20 mx-auto">
+                            <div className="absolute inset-0 border-4 border-orange-500/20 rounded-full"></div>
+                            <div className="absolute inset-0 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-black uppercase tracking-tight text-white mb-3">
+                                Ansluter Strava
+                            </h2>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 leading-relaxed">
+                                Vi verifierar din anslutning. Vänta ett ögonblick...
+                            </p>
+                        </div>
                     </div>
                 )}
 
                 {status === 'success' && (
-                    <div className="text-center">
-                        <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <svg className="w-8 h-8 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
+                    <div className="space-y-8">
+                        <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center mx-auto">
+                            <span className="text-4xl">🚀</span>
                         </div>
-                        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">
-                            Strava ansluten!
-                        </h2>
-                        <p className="text-gray-600 dark:text-gray-400 mb-4">
-                            Du kan nu exportera dina spår direkt till Strava
-                        </p>
-                        <p className="text-sm text-gray-500">
-                            Omdirigerar till din profil...
-                        </p>
+                        <div>
+                            <h2 className="text-2xl font-black uppercase tracking-tight text-white mb-3">
+                                Klart!
+                            </h2>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500/80 mb-6">
+                                Ditt Strava-konto är nu anslutet
+                            </p>
+                            <p className="text-xs font-bold text-slate-400 mb-10 leading-relaxed">
+                                Dina aktiviteter kommer nu synkroniseras automatiskt till ditt flöde.
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => router.push('/profile')}
+                            className="w-full py-4 bg-orange-600 hover:bg-orange-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-orange-900/40"
+                        >
+                            Tillbaka till Profil
+                        </button>
                     </div>
                 )}
 
                 {status === 'error' && (
-                    <div className="text-center">
-                        <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
+                    <div className="space-y-8">
+                        <div className="w-20 h-20 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center mx-auto">
+                            <span className="text-4xl">⚠️</span>
                         </div>
-                        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">
-                            Något gick fel
-                        </h2>
-                        <p className="text-gray-600 dark:text-gray-400 mb-6">
-                            {error}
-                        </p>
+                        <div>
+                            <h2 className="text-2xl font-black uppercase tracking-tight text-white mb-3">
+                                Något gick fel
+                            </h2>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-red-500/80 mb-6">
+                                {error || 'Kunde inte ansluta till Strava'}
+                            </p>
+                        </div>
                         <button
                             onClick={() => router.push('/profile')}
-                            className="px-6 py-3 bg-emerald-500 text-white rounded-lg font-semibold hover:bg-emerald-600 transition-colors"
+                            className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all border border-slate-700"
                         >
-                            Tillbaka till profil
+                            Försök igen
                         </button>
                     </div>
                 )}

@@ -60,10 +60,22 @@ export default function EventsPage() {
                 };
             });
 
-            // Filter based on tab
-            const filtered = mapped.filter(e => {
+            // Filter based on tab and visibility
+            const userProfileStored = localStorage.getItem('userProfile');
+            const userProfile = userProfileStored ? JSON.parse(userProfileStored) : null;
+            const userClubId = userProfile?.clubId;
+
+            const filtered = mapped.filter((e: any) => {
                 const eventDate = new Date(e.date);
-                return filter === 'upcoming' ? eventDate >= now : eventDate < now;
+                const isCorrectTab = filter === 'upcoming' ? eventDate >= now : eventDate < now;
+
+                // Visibility logic
+                const rawEvent = rawEvents.find((re: any) => re.id === e.id);
+                const isVisible = !rawEvent.visibility ||
+                    rawEvent.visibility === 'public' ||
+                    (rawEvent.visibility === 'club' && rawEvent.clubId === userClubId);
+
+                return isCorrectTab && isVisible;
             });
 
             // Sort by date
