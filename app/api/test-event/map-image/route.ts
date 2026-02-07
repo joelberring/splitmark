@@ -5,7 +5,7 @@ import { join } from 'path';
 // Serve the map image from testtävling/äns
 export async function GET() {
     try {
-        const imagePath = join(process.cwd(), 'testtävling', 'äns', 'karta_hela.png');
+        const imagePath = join(process.cwd(), 'public', 'test-map.png');
 
         if (!existsSync(imagePath)) {
             return NextResponse.json({ error: 'Map image not found' }, { status: 404 });
@@ -14,7 +14,7 @@ export async function GET() {
         const stats = statSync(imagePath);
         const imageBuffer = readFileSync(imagePath);
 
-        return new NextResponse(imageBuffer, {
+        return new NextResponse(new Uint8Array(imageBuffer), {
             headers: {
                 'Content-Type': 'image/png',
                 'Content-Length': stats.size.toString(),

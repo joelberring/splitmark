@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import PageHeader from '@/components/PageHeader';
 import Chat from '@/components/Chat';
 import Comments from '@/components/Comments';
 import ZoomableMap from '@/components/ZoomableMap';
@@ -10,102 +11,56 @@ import EntriesTab from '@/components/Events/EntriesTab';
 import ResultsTab from '@/components/Events/ResultsTab';
 import RegisterModal from '@/components/Events/RegisterModal';
 import { StoredEvent } from '@/types/event';
+import type { Entry, EntryWithResult } from '@/types/entry';
+import { getEvent } from '@/lib/firestore/events';
+import { subscribeToEntries } from '@/lib/firestore/entries';
+import { subscribeToResults } from '@/lib/firestore/results';
 
 export default function EventDetailsPage() {
     const params = useParams();
     const eventId = params.id as string;
 
     const [event, setEvent] = useState<StoredEvent | null>(null);
+    const [entries, setEntries] = useState<Entry[]>([]);
+    const [results, setResults] = useState<EntryWithResult[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'info' | 'classes' | 'entries' | 'results' | 'map' | 'chat'>('info');
     const [showRegisterModal, setShowRegisterModal] = useState(false);
 
     useEffect(() => {
-        loadEvent();
-    }, [eventId]);
+        let unsubscribeEntries = () => { };
+        let unsubscribeResults = () => { };
 
-    const loadEvent = async () => {
-        // Check if this is the test event with full results
-        if (eventId === 'ans-2025') {
+        const loadData = async () => {
             try {
-                const res = await fetch('/api/test-event');
-                const data = await res.json();
+                const fetchedEvent = await getEvent(eventId);
+                if (fetchedEvent) {
+                    setEvent(fetchedEvent as unknown as StoredEvent);
 
-                if (data.success && data.data.resultat) {
-                    // Parse the full results using parseIOFResultList
-                    const { parseIOFResultList, parseIOFCourseData } = await import('@/lib/import/iofXmlImport');
-                    const parsed = parseIOFResultList(data.data.resultat);
+                    // Subscribe to entries
+                    unsubscribeEntries = subscribeToEntries(eventId, (updatedEntries) => {
+                        setEntries(updatedEntries);
+                    });
 
-                    // Parse course data if available
-                    let courses: any[] = [];
-                    let controls: any[] = [];
-                    if (data.data.courseData) {
-                        const courseResult = parseIOFCourseData(data.data.courseData);
-                        courses = courseResult.courses;
-                        controls = courseResult.controls;
-                    }
-
-                    // Build full event with all results
-                    const fullEvent: StoredEvent = {
-                        id: 'ans-2025',
-                        name: data.eventName || 'Älvsjö Night Sprint',
-                        date: data.eventDate || '2025-12-02',
-                        time: '17:30',
-                        location: 'Älvsjö, Stockholm',
-                        status: 'completed',
-                        classification: 'club',
-                        classes: parsed.classes?.map((c: any) => ({
-                            id: c.id,
-                            name: c.name,
-                            entryCount: c.entryCount || 0,
-                        })) || [],
-                        entries: parsed.results?.map((r: any) => ({
-                            id: r.entryId,
-                            firstName: r.name.split(' ')[0],
-                            lastName: r.name.split(' ').slice(1).join(' '),
-                            club: r.club,
-                            classId: r.classId,
-                            className: r.className,
-                            status: r.status === 'OK' ? 'finished' : r.status?.toLowerCase(),
-                            time: r.time,
-                            position: r.position,
-                            splitTimes: r.splits?.map((s: any) => ({
-                                controlCode: s.controlCode,
-                                time: s.time,
-                            })),
-                        })) || [],
-                        courses: courses.map((c: any) => ({
-                            id: c.id,
-                            name: c.name,
-                            length: c.length || 0,
-                            controls: c.controls || [],
-                        })),
-                        map: {
-                            imageUrl: '/test-map.jpg',
-                            name: 'Älvsjö Night Sprint karta',
-                        },
-                    };
-
-                    setEvent(fullEvent);
-                    setLoading(false);
-                    return;
+                    // Subscribe to results
+                    unsubscribeResults = subscribeToResults(eventId, (updatedResults) => {
+                        setResults(updatedResults);
+                    });
                 }
             } catch (err) {
-                console.error('Failed to load test event:', err);
+                console.error('Failed to load event data:', err);
+            } finally {
+                setLoading(false);
             }
-        }
+        };
 
-        // Fallback to localStorage
-        const stored = localStorage.getItem('events');
-        if (stored) {
-            const events = JSON.parse(stored);
-            const found = events.find((e: StoredEvent) => e.id === eventId);
-            if (found) {
-                setEvent(found);
-            }
-        }
-        setLoading(false);
-    };
+        loadData();
+
+        return () => {
+            unsubscribeEntries();
+            unsubscribeResults();
+        };
+    }, [eventId]);
 
     if (loading) {
         return (
@@ -132,9 +87,9 @@ export default function EventDetailsPage() {
 
     const isCompleted = event.status === 'completed';
     const isPastDate = event.date && new Date(event.date) < new Date();
-    const hasEntries = event.entries && event.entries.length > 0;
-    const hasFinishedEntries = event.entries?.some((e: any) => e.status === 'finished' || e.result);
-    const showResults = (isCompleted || isPastDate) && hasFinishedEntries;
+    const hasEntriesCount = entries.length > 0;
+    const hasResultsCount = results.length > 0;
+    const showResults = (isCompleted || isPastDate) || hasResultsCount;
     const canRegister = !isCompleted && !isPastDate;
     const hasMap = event.map && event.map.imageUrl;
 
@@ -178,79 +133,57 @@ export default function EventDetailsPage() {
                     }
                 }
             `}</style>
-            {/* Header */}
-            <header className="bg-slate-900 shadow-lg border-b border-slate-800 relative z-10">
-                <div className="max-w-7xl mx-auto px-6 py-8">
-                    <Link
-                        href="/events"
-                        className="text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-emerald-400 mb-6 inline-block transition-colors group"
-                    >
-                        <span className="group-hover:-translate-x-1 inline-block transition-transform">←</span> Tillbaka till tävlingar
-                    </Link>
-
-                    <div className="flex items-start justify-between flex-wrap gap-4">
-                        <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-3 flex-wrap">
-                                <h1 className="text-3xl md:text-5xl font-bold text-white uppercase tracking-tight">
-                                    {event.name}
-                                </h1>
-                                {isCompleted && (
-                                    <span className="px-3 py-1 rounded bg-emerald-950/30 text-emerald-500 text-[10px] font-bold border border-emerald-900/50 uppercase tracking-widest">
-                                        Avslutad
-                                    </span>
-                                )}
-                                {event.classification && (
-                                    <span className={`px-3 py-1 rounded text-[10px] font-bold border uppercase tracking-widest ${event.classification === 'National'
-                                        ? 'bg-purple-950/20 text-purple-400 border-purple-900/30'
-                                        : 'bg-blue-950/20 text-blue-400 border-blue-900/30'
-                                        }`}>
-                                        {event.classification}
-                                    </span>
-                                )}
-                            </div>
-
-                            <div className="flex items-center gap-6 text-slate-400 mt-4 flex-wrap text-sm font-medium">
-                                {event.date && (
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-emerald-500">📅</span>
-                                        {new Date(event.date).toLocaleDateString('sv-SE', {
-                                            weekday: 'long',
-                                            year: 'numeric',
-                                            month: 'long',
-                                            day: 'numeric',
-                                        })}
-                                        {event.time && ` @ ${event.time}`}
-                                    </div>
-                                )}
-                                {event.organizer && (
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-emerald-500">🏃</span> {event.organizer}
-                                    </div>
-                                )}
-                                {event.location && (
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-emerald-500">📍</span> {event.location}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
+            <PageHeader
+                title={event.name}
+                subtitle={`${event.organizer || 'Arrangör'} · ${event.classification || 'Tävling'}`}
+                backHref="/events"
+                backLabel="Tävlingar"
+                showLogo
+                rightAction={
+                    <div className="flex items-center gap-3">
+                        {isCompleted && (
+                            <span className="px-3 py-1.5 rounded bg-emerald-900/30 text-emerald-400 text-[10px] font-black border border-emerald-800/50 uppercase tracking-widest">
+                                Avslutad
+                            </span>
+                        )}
                         {canRegister && (
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => setShowRegisterModal(true)}
-                                    className="px-8 py-4 bg-emerald-600 text-white rounded font-bold shadow-[0_0_20px_rgba(16,185,129,0.2)] hover:bg-emerald-500 transition-all hover:scale-105 active:scale-95 uppercase tracking-widest text-sm"
-                                >
-                                    Anmäl dig nu
-                                </button>
-                            </div>
+                            <button
+                                onClick={() => setShowRegisterModal(true)}
+                                className="px-6 py-2.5 bg-emerald-600 text-white rounded font-black shadow-lg shadow-emerald-900/20 hover:bg-emerald-500 transition-all active:scale-95 uppercase tracking-widest text-xs"
+                            >
+                                Anmäl
+                            </button>
                         )}
                     </div>
-                </div>
+                }
+            />
 
-                {/* Tabs */}
-                <div className="max-w-7xl mx-auto px-6 mt-4">
-                    <nav className="flex gap-8 border-slate-800 overflow-x-auto no-scrollbar">
+            {/* Event Info Bar */}
+            <div className="bg-slate-900/50 border-b border-slate-800">
+                <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-6 text-[10px] font-bold uppercase tracking-widest text-slate-500 overflow-x-auto no-scrollbar">
+                    {event.date && (
+                        <div className="flex items-center gap-2 whitespace-nowrap">
+                            <span className="text-emerald-500 text-base">📅</span>
+                            {new Date(event.date).toLocaleDateString('sv-SE', {
+                                weekday: 'short',
+                                day: 'numeric',
+                                month: 'short',
+                            })}
+                            {event.time && ` kl ${event.time}`}
+                        </div>
+                    )}
+                    {event.location && (
+                        <div className="flex items-center gap-2 whitespace-nowrap">
+                            <span className="text-emerald-500 text-base">📍</span> {event.location}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="bg-slate-900 border-b border-slate-800 sticky top-[120px] md:top-[128px] z-30">
+                <div className="max-w-7xl mx-auto px-4">
+                    <nav className="flex gap-1 overflow-x-auto no-scrollbar">
                         <TabButton
                             active={activeTab === 'info'}
                             onClick={() => setActiveTab('info')}
@@ -261,11 +194,11 @@ export default function EventDetailsPage() {
                             onClick={() => setActiveTab('classes')}
                             label="Klasser"
                         />
-                        {hasEntries && !showResults && (
+                        {(hasEntriesCount || !showResults) && (
                             <TabButton
                                 active={activeTab === 'entries'}
                                 onClick={() => setActiveTab('entries')}
-                                label={`Anmälda (${event.entries?.length || 0})`}
+                                label={`Anmälda ${entries.length > 0 ? `(${entries.length})` : ''}`}
                             />
                         )}
                         {showResults && (
@@ -279,30 +212,30 @@ export default function EventDetailsPage() {
                             <TabButton
                                 active={activeTab === 'map'}
                                 onClick={() => setActiveTab('map')}
-                                label="🗺️ Karta"
+                                label="Karta"
                             />
                         )}
                         <TabButton
                             active={activeTab === 'chat'}
                             onClick={() => setActiveTab('chat')}
-                            label="💬 Chat"
+                            label="Chat"
                         />
                         <button
                             onClick={() => window.print()}
-                            className="ml-auto pb-4 px-3 text-slate-500 hover:text-white font-bold text-xs uppercase tracking-widest no-print"
+                            className="ml-auto py-4 px-3 text-slate-500 hover:text-white font-bold text-[10px] uppercase tracking-widest no-print"
                         >
                             🖨️ Skriv ut
                         </button>
                     </nav>
                 </div>
-            </header>
+            </div>
 
             {/* Content */}
             <div className="max-w-7xl mx-auto px-4 py-8">
                 {activeTab === 'info' && <InfoTab event={event} />}
                 {activeTab === 'classes' && <ClassesTab event={event} />}
-                {activeTab === 'entries' && <EntriesTab event={event} />}
-                {activeTab === 'results' && <ResultsTab event={event} />}
+                {activeTab === 'entries' && <EntriesTab event={event} entries={entries} />}
+                {activeTab === 'results' && <ResultsTab event={event} results={results} />}
                 {activeTab === 'map' && hasMap && <MapTab event={event} />}
                 {activeTab === 'chat' && (
                     <div className="grid md:grid-cols-2 gap-8">
@@ -331,7 +264,7 @@ export default function EventDetailsPage() {
                     onClose={() => setShowRegisterModal(false)}
                     onSuccess={() => {
                         setShowRegisterModal(false);
-                        loadEvent(); // Reload to show updated entries
+                        // Subscriptions will handle the update automatically
                     }}
                 />
             )}

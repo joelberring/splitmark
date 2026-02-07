@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { EventData, Entry, saveEvent, checkMP, calculateResultTime } from './shared';
+import { EventData, Entry, checkMP, calculateResultTime } from './shared';
+import { saveEntry } from '@/lib/firestore/entries';
 
 interface Props {
     event: EventData;
@@ -16,37 +17,41 @@ export default function ResultEditModal({ event, entryId, onClose, onSave }: Pro
     const [punches, setPunches] = useState<{ code: string; time: string }[]>(entry.punches || []);
     const [originalClassId] = useState(entry.classId);
 
-    const handleSave = () => {
-        // 1. Determine status
+    const handleSave = async () => {
+        // ... same logic for status calculation
         let finalStatus = formData.status;
+        let finalResultStatus = formData.resultStatus;
 
-        // If status is 'finished' or 'mp', re-evaluate based on punches if class changed or punches changed
-        if (formData.status === 'finished' || formData.status === 'mp') {
+        if (formData.status === 'finished' || (formData as any).status === 'mp') {
             const course = event.classes.find(c => c.id === formData.classId);
             const courseControls = event.courses?.find(c => c.id === course?.courseId)?.controlIds || [];
 
             const isMP = checkMP(courseControls, punches);
-            finalStatus = isMP ? 'mp' : 'finished';
+            finalStatus = 'finished';
+            finalResultStatus = isMP ? 'mp' : 'ok';
+        } else {
+            finalResultStatus = formData.status as any;
         }
 
-        // 2. Updated Entry
         const updatedEntry: Entry = {
             ...formData,
             status: finalStatus,
+            resultStatus: finalResultStatus,
             punches: punches,
-            // Recalculate result time if we have start and finish
             resultTime: (formData.startTime && formData.finishTime)
                 ? calculateResultTime(formData.startTime, formData.finishTime)
-                : formData.resultTime
+                : formData.resultTime,
+            updatedAt: new Date().toISOString()
         };
 
-        // 3. Update Event
-        const updatedEntries = event.entries.map(e => e.id === entryId ? updatedEntry : e);
-        const updatedEvent = { ...event, entries: updatedEntries };
-
-        onSave(updatedEvent);
-        saveEvent(updatedEvent);
-        onClose();
+        try {
+            await saveEntry(event.id, updatedEntry as any);
+            onSave(event); // Still pass event for backward compatibility if needed, or update parent
+            onClose();
+        } catch (err) {
+            console.error('Failed to save manual adjustment:', err);
+            alert('Misslyckades att spara ändringarna.');
+        }
     };
 
     const addPunch = () => {
@@ -153,8 +158,15 @@ export default function ResultEditModal({ event, entryId, onClose, onSave }: Pro
                             <div>
                                 <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Status</label>
                                 <select
-                                    value={formData.status}
-                                    onChange={e => setFormData({ ...formData, status: e.target.value as any })}
+                                    value={(formData as any).status === 'finished' && formData.resultStatus === 'mp' ? 'mp' : formData.status}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        if (val === 'mp') {
+                                            setFormData({ ...formData, status: 'finished', resultStatus: 'mp' });
+                                        } else {
+                                            setFormData({ ...formData, status: val as any, resultStatus: val as any });
+                                        }
+                                    }}
                                     className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
                                 >
                                     <option value="finished">Godkänd (OK)</option>

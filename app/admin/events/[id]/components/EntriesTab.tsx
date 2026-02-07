@@ -2,43 +2,46 @@
 
 import { useState } from 'react';
 import HelpButton from '@/components/HelpButton';
-import { EventData, Entry, saveEvent } from './shared';
+import { EventData, Entry } from './shared';
+import { saveEntry, deleteEntry } from '@/lib/firestore/entries';
 
 export default function EntriesTab({ event, setEvent }: { event: EventData; setEvent: (e: EventData) => void }) {
     const [showAddModal, setShowAddModal] = useState(false);
     const [newEntry, setNewEntry] = useState({ name: '', club: '', className: '', siCard: '' });
 
-    const handleAddEntry = () => {
+    const handleAddEntry = async () => {
         if (!newEntry.name.trim()) return;
+
+        const selectedClass = event.classes.find(c => c.name === newEntry.className) || event.classes[0];
 
         const entry: Entry = {
             id: `entry-${Date.now()}`,
             name: newEntry.name,
             club: newEntry.club,
-            className: newEntry.className || event.classes[0]?.name || 'Öppen',
+            classId: selectedClass?.id || 'open',
+            className: selectedClass?.name || 'Öppen',
             siCard: newEntry.siCard,
-            startTime: undefined,
             status: 'registered',
         };
 
-        const updatedEvent = {
-            ...event,
-            entries: [...event.entries, entry],
-        };
-
-        setEvent(updatedEvent);
-        saveEvent(updatedEvent);
-        setNewEntry({ name: '', club: '', className: '', siCard: '' });
-        setShowAddModal(false);
+        try {
+            await saveEntry(event.id, entry as any);
+            setNewEntry({ name: '', club: '', className: '', siCard: '' });
+            setShowAddModal(false);
+        } catch (err) {
+            console.error('Failed to add entry:', err);
+            alert('Misslyckades att lägga till deltagare.');
+        }
     };
 
-    const handleDeleteEntry = (entryId: string) => {
-        const updatedEvent = {
-            ...event,
-            entries: event.entries.filter(e => e.id !== entryId),
-        };
-        setEvent(updatedEvent);
-        saveEvent(updatedEvent);
+    const handleDeleteEntry = async (entryId: string) => {
+        if (!confirm('Ta bort denna deltagare?')) return;
+        try {
+            await deleteEntry(event.id, entryId);
+        } catch (err) {
+            console.error('Failed to delete entry:', err);
+            alert('Misslyckades att ta bort deltagare.');
+        }
     };
 
     return (
@@ -94,11 +97,13 @@ export default function EntriesTab({ event, setEvent }: { event: EventData; setE
                                     <td className="px-4 py-3 text-slate-400">{entry.className}</td>
                                     <td className="px-4 py-3 font-mono text-slate-500">{entry.siCard || '-'}</td>
                                     <td className="px-4 py-3 text-right">
-                                        <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-widest rounded ${entry.status === 'finished' ? 'bg-emerald-900/30 text-emerald-400' :
-                                                entry.status === 'started' ? 'bg-blue-900/30 text-blue-400' :
-                                                    'bg-slate-800 text-slate-500'
+                                        <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-widest rounded ${(entry.resultStatus === 'ok' || entry.status === 'finished') ? 'bg-emerald-900/30 text-emerald-400' :
+                                            entry.status === 'started' ? 'bg-blue-900/30 text-blue-400' :
+                                                'bg-slate-800 text-slate-500'
                                             }`}>
-                                            {entry.status === 'finished' ? 'I mål' : entry.status === 'started' ? 'Startat' : 'Anmäld'}
+                                            {(entry.resultStatus === 'ok' || entry.status === 'finished') ? 'I mål' :
+                                                entry.status === 'started' ? 'Startat' :
+                                                    entry.status === 'registered' ? 'Anmäld' : entry.status.toUpperCase()}
                                         </span>
                                     </td>
                                     <td className="px-4 py-3 text-right">

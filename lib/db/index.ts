@@ -28,6 +28,7 @@ export class OrienteeringDB extends Dexie {
     transactionLog!: EntityTable<TransactionLog, 'id'>;
     settings!: EntityTable<UserSettings, 'id'>;
     syncStatus!: EntityTable<SyncStatus, 'id'>;
+    mapTiles!: EntityTable<{ url: string; data: ArrayBuffer; timestamp: Date }, 'url'>;
 
     constructor() {
         super('OrienteeringDB');
@@ -43,6 +44,7 @@ export class OrienteeringDB extends Dexie {
             transactionLog: 'id, timestamp, synced, type, entity',
             settings: 'id, userId',
             syncStatus: 'id',
+            mapTiles: 'url, timestamp',
         });
     }
 }

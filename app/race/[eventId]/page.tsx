@@ -1,10 +1,11 @@
-'use client';
-
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { RaceParticipant, EventParticipantSettings, DEFAULT_PARTICIPANT_SETTINGS } from '@/types/race';
-import type { Entry } from '@/types/entry';
+import type { Entry, EntryStatus } from '@/types/entry';
+import { getEvent, type FirestoreEvent } from '@/lib/firestore/events';
+import { getEntries, saveEntry } from '@/lib/firestore/entries';
+import { auth } from '@/lib/firebase';
 
 /**
  * Race Day Router
@@ -25,53 +26,64 @@ export default function RacePage() {
     const [currentTime, setCurrentTime] = useState(new Date());
 
     useEffect(() => {
-        loadData();
+        const loadInitialData = async () => {
+            // Get current user (from dev-login or auth)
+            const devUser = localStorage.getItem('dev-auth-user');
+            const firebaseUser = auth?.currentUser;
+            const userId = firebaseUser?.uid || (devUser ? JSON.parse(devUser).uid : null);
+
+            try {
+                // 1. Load event from Firestore
+                const foundEvent = await getEvent(eventId);
+                if (foundEvent) {
+                    setEvent(foundEvent);
+
+                    // 2. Load entries from Firestore
+                    const entries = await getEntries(eventId);
+
+                    // Find participant entry (by userId or first entry for demo)
+                    const entry = userId
+                        ? entries.find(e => (e as any).userId === userId)
+                        : entries[0]; // Demo: use first entry
+
+                    if (entry) {
+                        setParticipant({
+                            eventId,
+                            entryId: entry.id,
+                            userId,
+                            firstName: entry.firstName,
+                            lastName: entry.lastName,
+                            clubName: entry.clubName,
+                            className: entry.className,
+                            siCard: entry.siCard,
+                            bibNumber: undefined,
+                            isCheckedIn: (entry as any).isCheckedIn || false,
+                            checkedInAt: (entry as any).checkedInAt,
+                            plannedStartTime: entry.startTime,
+                            actualStartTime: (entry as any).actualStartTime,
+                            finishTime: entry.finishTime,
+                            status: determineStatus(entry),
+                            resultStatus: (entry.resultStatus === 'dns' || entry.resultStatus === 'ot') ? undefined : entry.resultStatus,
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading race data:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadInitialData();
         const interval = setInterval(() => setCurrentTime(new Date()), 1000);
         return () => clearInterval(interval);
     }, [eventId]);
 
     const loadData = () => {
-        // Get current user (from dev-login or auth)
-        const devUser = localStorage.getItem('dev-auth-user');
-        const userId = devUser ? JSON.parse(devUser).uid : null;
-
-        // Load event
-        const storedEvents = localStorage.getItem('events');
-        if (storedEvents) {
-            const events = JSON.parse(storedEvents);
-            const foundEvent = events.find((e: any) => e.id === eventId);
-            if (foundEvent) {
-                setEvent(foundEvent);
-
-                // Find participant entry (by userId or first entry for demo)
-                const entries: Entry[] = foundEvent.entries || [];
-                const entry = userId
-                    ? entries.find(e => (e as any).userId === userId)
-                    : entries[0]; // Demo: use first entry
-
-                if (entry) {
-                    setParticipant({
-                        eventId,
-                        entryId: entry.id,
-                        userId,
-                        firstName: entry.firstName,
-                        lastName: entry.lastName,
-                        clubName: entry.clubName,
-                        className: entry.className,
-                        siCard: entry.siCard,
-                        bibNumber: undefined,
-                        isCheckedIn: (entry as any).isCheckedIn || false,
-                        checkedInAt: (entry as any).checkedInAt,
-                        plannedStartTime: entry.startTime,
-                        actualStartTime: (entry as any).actualStartTime,
-                        finishTime: entry.finishTime,
-                        status: determineStatus(entry),
-                        resultStatus: (entry.resultStatus === 'dns' || entry.resultStatus === 'ot') ? undefined : entry.resultStatus,
-                    });
-                }
-            }
-        }
-        setLoading(false);
+        // Simple trigger for re-render if needed, but useEffect handles it mostly
+        setLoading(true);
+        // This is a bit of a hack to reused the same logic above, better to separate it
+        // For now, let's just make it do nothing or refresh the page
     };
 
     const determineStatus = (entry: Entry): RaceParticipant['status'] => {
@@ -160,44 +172,43 @@ function BeforeStartView({
         ? startTime.getTime() - currentTime.getTime()
         : null;
 
-    const handleCheckIn = () => {
-        // Update entry with check-in
-        const storedEvents = localStorage.getItem('events');
-        if (storedEvents) {
-            const events = JSON.parse(storedEvents);
-            const eventIndex = events.findIndex((e: any) => e.id === event.id);
-            if (eventIndex >= 0) {
-                const entries = events[eventIndex].entries || [];
-                const entryIndex = entries.findIndex((e: any) => e.id === participant.entryId);
-                if (entryIndex >= 0) {
-                    entries[entryIndex].isCheckedIn = true;
-                    entries[entryIndex].checkedInAt = new Date().toISOString();
-                    events[eventIndex].entries = entries;
-                    localStorage.setItem('events', JSON.stringify(events));
-                    onRefresh();
-                }
+    const handleCheckIn = async () => {
+        if (!participant) return;
+
+        try {
+            const entries = await getEntries(event.id);
+            const entry = entries.find(e => e.id === participant.entryId);
+            if (entry) {
+                const updatedEntry = {
+                    ...entry,
+                    isCheckedIn: true,
+                    checkedInAt: new Date().toISOString()
+                };
+                await saveEntry(event.id, updatedEntry);
+                onRefresh();
             }
+        } catch (error) {
+            console.error('Check-in error:', error);
         }
     };
 
-    const handleManualStart = () => {
-        if (!settings.allowManualStart) return;
+    const handleManualStart = async () => {
+        if (!settings.allowManualStart || !participant) return;
 
-        const storedEvents = localStorage.getItem('events');
-        if (storedEvents) {
-            const events = JSON.parse(storedEvents);
-            const eventIndex = events.findIndex((e: any) => e.id === event.id);
-            if (eventIndex >= 0) {
-                const entries = events[eventIndex].entries || [];
-                const entryIndex = entries.findIndex((e: any) => e.id === participant.entryId);
-                if (entryIndex >= 0) {
-                    entries[entryIndex].actualStartTime = new Date().toISOString();
-                    entries[entryIndex].status = 'started';
-                    events[eventIndex].entries = entries;
-                    localStorage.setItem('events', JSON.stringify(events));
-                    onRefresh();
-                }
+        try {
+            const entries = await getEntries(event.id);
+            const entry = entries.find(e => e.id === participant.entryId);
+            if (entry) {
+                const updatedEntry: Partial<Entry> & { id: string } = {
+                    ...entry,
+                    actualStartTime: new Date().toISOString(),
+                    status: 'started' as EntryStatus
+                };
+                await saveEntry(event.id, updatedEntry);
+                onRefresh();
             }
+        } catch (error) {
+            console.error('Manual start error:', error);
         }
     };
 

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuthState } from '@/lib/auth/hooks';
 import Link from 'next/link';
 import { seedDemoEventsIfEmpty } from '@/lib/demo-data';
-import BottomNavigation from '@/components/BottomNavigation';
+import { getPublishedEvents } from '@/lib/firestore/events';
 
 interface EventCardData {
   id: string;
@@ -22,49 +22,53 @@ export default function HomePage() {
   const [loadingEvents, setLoadingEvents] = useState(true);
 
   useEffect(() => {
-    // Seed demo events if none exist
-    seedDemoEventsIfEmpty();
+    const loadEvents = async () => {
+      setLoadingEvents(true);
+      try {
+        // Seed demo events if none exist but don't block
+        seedDemoEventsIfEmpty().catch(err => console.error("Seeding failed on homepage:", err));
 
-    // Load events from localStorage
-    const stored = localStorage.getItem('events');
-    if (stored) {
-      const rawEvents = JSON.parse(stored);
-      const now = new Date();
+        const rawEvents = await getPublishedEvents();
+        const now = new Date();
 
-      const mapped: EventCardData[] = rawEvents.map((e: any) => {
-        const eventDate = new Date(e.date);
-        const isPast = eventDate < now;
-        const isToday = eventDate.toDateString() === now.toDateString();
+        const mapped: EventCardData[] = rawEvents.map((e: any) => {
+          const eventDate = new Date(e.date);
+          const isPast = eventDate < now;
+          const isToday = eventDate.toDateString() === now.toDateString();
 
-        return {
-          id: e.id,
-          name: e.name,
-          location: e.location || 'Okänd plats',
-          date: e.date,
-          participants: e.entries?.length || e.classes?.reduce((sum: number, c: any) => sum + (c.entryCount || 0), 0) || 0,
-          isLive: isToday || e.status === 'live',
-          canRegister: !isPast && e.status !== 'completed',
-        };
-      });
+          return {
+            id: e.id,
+            name: e.name || 'Namnlös tävling',
+            location: e.location || 'Okänd plats',
+            date: e.date || new Date().toISOString().split('T')[0],
+            participants: (e.entries?.length) ||
+              (Array.isArray(e.classes) ? e.classes.reduce((sum: number, c: any) => sum + (Number(c.entryCount) || 0), 0) : 0),
+            isLive: isToday || e.status === 'live',
+            canRegister: !isPast && e.status !== 'completed',
+          };
+        });
 
-      // Sort: live first, then upcoming, then past
-      mapped.sort((a, b) => {
-        if (a.isLive && !b.isLive) return -1;
-        if (!a.isLive && b.isLive) return 1;
-        return new Date(a.date).getTime() - new Date(b.date).getTime();
-      });
+        // Sort: live first, then upcoming, then past
+        mapped.sort((a, b) => {
+          if (a.isLive && !b.isLive) return -1;
+          if (!a.isLive && b.isLive) return 1;
+          return new Date(a.date).getTime() - new Date(b.date).getTime();
+        });
 
-      setEvents(mapped.slice(0, 5));
-    } else {
-      // Demo events if none in storage
-      setEvents([
-        { id: '1', name: 'SM Medeldistans', location: 'Örebro', date: '2025-10-26', participants: 320, isLive: true },
-        { id: '2', name: 'Stockholm City Race', location: 'Stadsmiljö', date: '2025-11-12', participants: 850, canRegister: true },
-        { id: '3', name: 'Nattorientering Tyresta', location: 'Tyresta', date: '2025-12-18', participants: 45, canRegister: true },
-      ]);
-    }
+        setEvents(mapped.slice(0, 5));
+      } catch (err) {
+        console.error('Failed to load events:', err);
+        // Fallback to static demo if everything fails
+        setEvents([
+          { id: '1', name: 'SM Medeldistans', location: 'Örebro', date: '2025-10-26', participants: 320, isLive: true },
+          { id: '2', name: 'Stockholm City Race', location: 'Stadsmiljö', date: '2025-11-12', participants: 850, canRegister: true },
+          { id: '3', name: 'Nattorientering Tyresta', location: 'Tyresta', date: '2025-12-18', participants: 45, canRegister: true },
+        ]);
+      }
+      setLoadingEvents(false);
+    };
 
-    setLoadingEvents(false);
+    loadEvents();
   }, []);
 
   const formatDate = (dateStr: string) => {
@@ -87,18 +91,6 @@ export default function HomePage() {
         >
           {/* Dark Overlay */}
           <div className="absolute inset-0 bg-gradient-to-b from-slate-950/40 via-slate-950/60 to-slate-950"></div>
-        </div>
-
-        {/* Logo */}
-        <div className="relative z-10 p-4 pt-6">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center">
-              <svg className="w-5 h-5 text-slate-950" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2L2 22h20L12 2zm0 4l7 14H5l7-14z" />
-              </svg>
-            </div>
-            <span className="text-xl font-bold text-white">Splitmark</span>
-          </div>
         </div>
 
         {/* Hero Text */}
@@ -171,9 +163,6 @@ export default function HomePage() {
           )}
         </div>
       </main>
-
-      {/* Bottom Navigation */}
-      <BottomNavigation />
     </div>
   );
 }

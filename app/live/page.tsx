@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
-import BottomNavigation from '@/components/BottomNavigation';
 import { OrienteeringMapEngine } from '@/lib/maps/engine';
 import type { GeoPoint } from '@/types/maps';
 
@@ -82,7 +81,7 @@ export default function LiveTrackingPage() {
     }, [runners, mapEngine, following]);
 
     return (
-        <div className="h-screen flex flex-col bg-slate-950 text-white pb-20">
+        <div className="h-screen flex flex-col bg-slate-950 text-white">
             {/* Header */}
             <header className="bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -128,8 +127,8 @@ export default function LiveTrackingPage() {
                                         setFollowing(following === runner.id ? null : runner.id);
                                     }}
                                     className={`w-full p-3 rounded-lg border-l-4 text-left transition-all ${selectedRunner === runner.id
-                                            ? 'border-emerald-500 bg-slate-800'
-                                            : 'border-slate-700 bg-slate-800/50 hover:bg-slate-800'
+                                        ? 'border-emerald-500 bg-slate-800'
+                                        : 'border-slate-700 bg-slate-800/50 hover:bg-slate-800'
                                         }`}
                                 >
                                     <div className="flex items-center justify-between">
@@ -155,7 +154,6 @@ export default function LiveTrackingPage() {
                 </div>
             </div>
 
-            <BottomNavigation />
         </div>
     );
 }

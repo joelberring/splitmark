@@ -354,6 +354,47 @@ export class OrienteeringMapEngine {
     }
 
     /**
+     * Update multiple runner heads (live or replay)
+     */
+    updateMultipleTrackHeads(runners: Array<{ id: string; position: GeoPoint; color?: string }>): void {
+        runners.forEach(runner => {
+            const sourceId = `head-${runner.id}`;
+            const layerId = `${sourceId}-circle`;
+            const source = this.map.getSource(sourceId) as maplibregl.GeoJSONSource;
+
+            const geoJSON: GeoJSON.Feature = {
+                type: 'Feature',
+                geometry: {
+                    type: 'Point',
+                    coordinates: [runner.position.lng, runner.position.lat],
+                },
+                properties: {},
+            };
+
+            if (source) {
+                source.setData(geoJSON);
+            } else {
+                this.map.addSource(sourceId, {
+                    type: 'geojson',
+                    data: geoJSON,
+                });
+
+                this.map.addLayer({
+                    id: layerId,
+                    type: 'circle',
+                    source: sourceId,
+                    paint: {
+                        'circle-radius': 8,
+                        'circle-color': runner.color || '#007cbf',
+                        'circle-stroke-width': 2,
+                        'circle-stroke-color': '#ffffff',
+                    },
+                });
+            }
+        });
+    }
+
+    /**
      * Rotate map to magnetic declination
      */
     rotateToDeclination(declination: number): void {

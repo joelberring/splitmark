@@ -6,6 +6,13 @@ const nextConfig: NextConfig = {
     return `build-${Date.now()}`;
   },
 
+  // Ensure test data is bundled for API routes
+  outputFileTracingIncludes: {
+    '/api/admin/migrate-ans': ['./data/ans/**/*'],
+    '/api/test-event': ['./data/ans/**/*'],
+    '/api/test-data/**/*': ['./data/ans/**/*'],
+  },
+
   // Custom headers to control caching behavior
   async headers() {
     return [

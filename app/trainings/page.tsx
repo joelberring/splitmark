@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
-import BottomNavigation from '@/components/BottomNavigation';
 import { useUserWithRoles } from '@/lib/auth/usePermissions';
 import TrainingSignupForm from '@/components/TrainingSignupForm';
 import Comments from '@/components/Comments';
@@ -51,7 +50,7 @@ export default function TrainingsPage() {
     const filteredTrainings = trainings.filter(t => filter === 'upcoming' ? isUpcoming(t.date) : !isUpcoming(t.date));
 
     return (
-        <div className="min-h-screen flex flex-col bg-slate-950 text-white pb-24">
+        <div className="min-h-screen flex flex-col bg-slate-950 text-white">
             <PageHeader title="Träningar" showLogo />
 
             <main className="flex-1 px-4 py-6 max-w-6xl mx-auto w-full">
@@ -145,7 +144,6 @@ export default function TrainingsPage() {
                 </div>
             </main>
 
-            <BottomNavigation />
         </div>
     );
 }

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { parseResultListXML, parseCourseDataXML, importParsedEventToLocalStorage, parsePurplePenXML } from '@/lib/import/iof-xml-parser';
+import { parseResultListXML, parseCourseDataXML, parsePurplePenXML } from '@/lib/import/iof-xml-parser';
+import { importParsedEventToFirestore } from '@/lib/import/firestore-import';
 import Link from 'next/link';
 
 export default function ImportTestDataPage() {
@@ -102,9 +103,10 @@ export default function ImportTestDataPage() {
                 console.log('Purple Pen data not available, continuing without control positions');
             }
 
-            // Import to localStorage with map data
-            setMessage('Sparar till app...');
-            const eventId = importParsedEventWithMap(parsedEvent, mapData);
+            // Import to Firestore with map data
+            setMessage('Sparar till Cloud/Firestore...');
+            const eventId = await importParsedEventToFirestore(parsedEvent);
+            // TODO: Handle mapData specifically in firestore-import if needed
             setImportedEventId(eventId);
 
             setStatus('success');
@@ -117,103 +119,6 @@ export default function ImportTestDataPage() {
         }
     };
 
-    // Updated import function that includes map data
-    const importParsedEventWithMap = (event: any, mapData: any): string => {
-        const eventId = `event-${Date.now()}`;
-
-        const appEvent = {
-            id: eventId,
-            name: event.name,
-            date: event.date,
-            time: '17:30',
-            location: 'Älvsjö',
-            organizer: 'OK Älvsjö-Örby',
-            classification: 'Local',
-            description: 'Importerad tävling från ÄNS testfiler',
-            status: 'completed',
-            // Map data
-            map: mapData ? {
-                imageUrl: mapData.mapImageUrl,
-                bounds: mapData.bounds,
-                scale: 4000,
-            } : null,
-            // Classes
-            classes: event.classes.map((c: any) => ({
-                id: c.id,
-                name: c.name,
-                hasPool: c.hasPool,               // NEW: Pool indicator
-                poolId: c.poolId,
-                courseId: c.courseId,
-                courseName: c.courseName,
-                courseVariants: c.courseVariants,
-                forkKeys: c.forkKeys,             // NEW: Fork keys (AC, AD, BC, BD)
-                entryCount: event.results.filter((r: any) => r.classId === c.id).length,
-            })),
-            // Courses
-            courses: event.courses.map((c: any) => ({
-                id: c.id,
-                eventId,
-                name: c.name,
-                length: c.length,
-                climb: c.climb || 0,
-                controls: c.controls.map((ctrl: any) => ({
-                    id: ctrl.id,
-                    code: ctrl.code,
-                    type: ctrl.type,
-                    order: ctrl.order,
-                    lat: ctrl.lat,
-                    lng: ctrl.lng,
-                })),
-                classIds: event.classes.filter((cls: any) => cls.courseId === c.id).map((cls: any) => cls.id),
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-            })),
-            // Entries (from results)
-            entries: event.results.map((r: any) => ({
-                id: r.personId,
-                name: `${r.firstName} ${r.lastName}`,
-                firstName: r.firstName,
-                lastName: r.lastName,
-                club: r.club,
-                clubId: r.clubId,
-                classId: r.classId,
-                siCard: r.siCard,
-                startTime: r.startTime,
-                finishTime: r.finishTime,
-                time: r.time,
-                status: r.status === 'OK' ? 'finished' : r.status === 'DNS' ? 'dns' : r.status === 'DNF' ? 'dnf' : 'finished',
-                position: r.position,
-                splitTimes: r.splitTimes,
-            })),
-            images: [],
-            attachments: [],
-            googleMapsUrl: '',
-            registrationSettings: {
-                deadline: '',
-                lateDeadline: '',
-                allowLateRegistration: false,
-                lateRegistrationFee: 0,
-                allowDirectRegistration: false,
-                directRegistrationClasses: [],
-                directRegistrationAllClasses: true,
-            },
-            gpsMode: { enabled: false, sensitivity: 'standard' },
-            spectatorMode: {
-                showOLMapToSpectators: true,
-                showCourseToSpectators: true,
-                courseVisibleAfterFinish: true,
-            },
-            createdAt: new Date().toISOString(),
-            createdBy: 'import',
-        };
-
-        const storedEvents = localStorage.getItem('events');
-        const events = storedEvents ? JSON.parse(storedEvents) : [];
-        events.push(appEvent);
-        localStorage.setItem('events', JSON.stringify(events));
-
-        return eventId;
-    };
 
     return (
         <div className="min-h-screen bg-slate-950 p-8">

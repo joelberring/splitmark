@@ -27,8 +27,11 @@ export interface Entry {
 
     // Status
     status: EntryStatus;
-    startTime?: string; // ISO timestamp
+    startTime?: string; // ISO timestamp (planned)
     finishTime?: string;
+    actualStartTime?: string; // ISO timestamp (actual start)
+    isCheckedIn?: boolean;
+    checkedInAt?: string;
     resultStatus?: ResultStatus;
 
     // Metadata

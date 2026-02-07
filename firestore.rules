@@ -57,5 +57,31 @@ service cloud.firestore {
       allow read: if true;
       allow write: if request.auth != null;
     }
+
+    // Tracks collection
+    match /tracks/{trackId} {
+      // Owner can do everything
+      allow read, write: if request.auth != null && (resource == null || resource.data.userId == request.auth.uid || request.auth.uid == request.resource.data.userId);
+      
+      // Public read if track is linked to a public/active event
+      allow read: if resource.data.eventId != null && 
+        get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.status in ['active', 'completed'];
+    }
+
+    // Club Activities
+    match /club_activities/{activityId} {
+      allow read: if true; // Or restrict to club members
+      allow write: if request.auth != null; // Ideally check for club admin role
+    }
+
+    // Activity Registrations
+    match /activity_registrations/{regId} {
+      allow read: if true;
+      allow write: if request.auth != null && (
+        request.resource.data.userId == request.auth.uid || // Self-registration
+        request.auth.uid == resource.data.userId || // Self-update
+        true // Ideally check for club admin role for attendance marking
+      );
+    }
   }
 }

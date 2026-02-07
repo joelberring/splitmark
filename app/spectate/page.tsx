@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
-import BottomNavigation from '@/components/BottomNavigation';
 
 interface LiveEvent {
     id: string;
@@ -35,10 +34,10 @@ export default function SpectatePage() {
                     location: e.location || 'Okänd plats',
                     date: e.date,
                     status: e.status === 'active' ? 'live' : e.status === 'draft' ? 'upcoming' : 'finished',
-                    activeRunners: e.entries.filter(ent => ent.status === 'started').length,
-                    totalRunners: e.entries.length,
+                    activeRunners: (e.entries || []).filter(ent => ent.status === 'started').length,
+                    totalRunners: (e.entries || []).length,
                     classes: e.classes?.map(c => c.name) || [],
-                    organizer: 'Arrangör', // TODO: Add organizer to event model
+                    organizer: e.organizer || 'Arrangör',
                 }));
                 // Filter out completed/draft events that aren't relevant? 
                 // Currently keeping them but mapping status.
@@ -64,22 +63,20 @@ export default function SpectatePage() {
     }
 
     return (
-        <div className="min-h-screen flex flex-col bg-slate-950 text-white pb-24">
-            {/* Header */}
-            <header className="bg-slate-900 border-b border-slate-800 px-4 py-4">
-                <div className="flex items-center justify-between mb-4">
-                    <h1 className="text-xl font-bold uppercase tracking-tight">Livebevakning</h1>
-                    {liveCount > 0 && (
+        <div className="min-h-screen flex flex-col bg-slate-950 text-white">
+            <PageHeader
+                title="Livebevakning"
+                subtitle="Följ tävlingar live med GPS och resultat"
+                showLogo
+                rightAction={
+                    liveCount > 0 && (
                         <div className="flex items-center gap-2 bg-red-900/30 px-3 py-1.5 rounded-full border border-red-800/50">
                             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                            <span className="text-red-400 text-xs font-bold uppercase tracking-wider">{liveCount} Live</span>
+                            <span className="text-red-400 text-[10px] font-black uppercase tracking-widest">{liveCount} Live</span>
                         </div>
-                    )}
-                </div>
-                <p className="text-slate-500 text-sm">
-                    Följ pågående tävlingar live med GPS-spår och resultat.
-                </p>
-            </header>
+                    )
+                }
+            />
 
             {/* Filter tabs */}
             <div className="bg-slate-900 border-b border-slate-800 px-4">
@@ -184,8 +181,6 @@ export default function SpectatePage() {
                     </div>
                 )}
             </main>
-
-            <BottomNavigation />
         </div>
     );
 }

@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
-import BottomNavigation from '@/components/BottomNavigation';
 import ActivityFeed, { Activity, generateDemoActivities } from '@/components/Feed/ActivityFeed';
 import { useAuthState } from '@/lib/auth/hooks';
 import { getPublishedEvents, type FirestoreEvent } from '@/lib/firestore/events';
@@ -24,6 +23,7 @@ export default function FeedPage() {
     const [feedEvents, setFeedEvents] = useState<FeedEvent[]>([]);
     const [filter, setFilter] = useState<'all' | 'friends' | 'mine'>('all');
     const [loading, setLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         const loadContent = async () => {
@@ -53,15 +53,15 @@ export default function FeedPage() {
                     // Take top 10 results from each event or all? Let's take a sample.
                     // If we have real data, we might want all of them properly sorted.
                     // For now, let's map ALL results to activities.
-                    const eventActs = (event.results || []).map((res, idx) => ({
-                        id: `act-${event.id}-${res.entryId || idx}`,
-                        userId: res.personId || `user-fake-${idx}`,
-                        userName: res.name,
+                    const eventActs: Activity[] = (event.results || []).map((res, idx) => ({
+                        id: `act-${event.id}-${res.id || idx}`,
+                        userId: res.id || `user-fake-${idx}`,
+                        userName: res.name || 'Anonym löpare',
                         eventName: event.name,
                         eventId: event.id,
                         courseName: res.className || '',
                         date: eventDate, // Or result timestamp if we had it
-                        duration: res.time, // Seconds
+                        duration: res.time || 0, // Seconds
                         distance: 0, // We assume 0 or random if not in result
                         resultStatus: (res.status?.toLowerCase() || 'ok') as 'ok' | 'mp' | 'dnf',
                         position: res.position,
@@ -141,15 +141,43 @@ export default function FeedPage() {
         }
     }, [activities, user]);
 
+    const filteredActivities = activities.filter(a => {
+        if (searchQuery) {
+            return (
+                a.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                a.eventName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                a.className?.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+        }
+        return true;
+    });
+
     return (
-        <div className="min-h-screen flex flex-col bg-slate-950 text-white pb-20">
+        <div className="min-h-screen flex flex-col bg-slate-950 text-white">
             <PageHeader title="Flöde" showLogo />
 
+            {/* Search and Discovery */}
+            <div className="px-4 py-4 bg-slate-900/50 backdrop-blur-md sticky top-[64px] z-30 border-b border-slate-800">
+                <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">🔍</span>
+                    <input
+                        type="text"
+                        placeholder="Sök resultat, löpare eller tävlingar..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-slate-800 border-none rounded-2xl py-3 pl-10 pr-4 text-sm focus:ring-2 focus:ring-emerald-500/50 transition-all placeholder:text-slate-600"
+                    />
+                </div>
+            </div>
+
             {/* New Events Section */}
-            <section className="px-4 py-4 border-b border-slate-800">
-                <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">
-                    Senaste nyheter
-                </h2>
+            <section className="px-4 py-6 border-b border-slate-800 bg-slate-900/20">
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                        Händelser & Nyheter
+                    </h2>
+                    <Link href="/events" className="text-[10px] font-bold text-emerald-500 hover:text-emerald-400 uppercase tracking-wider transition-colors">Visa alla</Link>
+                </div>
                 {feedEvents.length > 0 ? (
                     <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
                         {feedEvents.map(event => (
@@ -187,8 +215,8 @@ export default function FeedPage() {
 
             {/* Activity Feed */}
             <main className="flex-1 py-4">
-                <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 px-4">
-                    Aktivitet från vänner och klubbmedlemmar
+                <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3 px-4">
+                    Aktivitet & Resultat
                 </h2>
 
                 {loading ? (
@@ -197,7 +225,7 @@ export default function FeedPage() {
                     </div>
                 ) : (
                     <ActivityFeed
-                        activities={activities}
+                        activities={filteredActivities}
                         filter={filter}
                         onFilterChange={setFilter}
                         onKudos={handleKudos}
@@ -205,8 +233,6 @@ export default function FeedPage() {
                     />
                 )}
             </main>
-
-            <BottomNavigation />
         </div>
     );
 }

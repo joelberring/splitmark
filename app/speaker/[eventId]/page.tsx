@@ -1,11 +1,12 @@
-'use client';
-
 import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import type { Entry } from '@/types/entry';
+import type { Entry, EntryWithResult } from '@/types/entry';
 import PunchInput from '@/components/Speaker/PunchInput';
 import EventFeed, { resultsToEvents, type RaceEvent } from '@/components/Speaker/EventFeed';
+import { getEvent, subscribeToEvents, type FirestoreEvent } from '@/lib/firestore/events';
+import { subscribeToEntries } from '@/lib/firestore/entries';
+import { subscribeToSpeakerMessages, addSpeakerMessage, type SpeakerMessage } from '@/lib/firestore/speaker';
 
 interface EventData {
     eventId: string;
@@ -18,7 +19,9 @@ export default function SpeakerPage() {
     const params = useParams();
     const eventId = params.eventId as string;
 
-    const [data, setData] = useState<EventData | null>(null);
+    const [event, setEvent] = useState<FirestoreEvent | null>(null);
+    const [entries, setEntries] = useState<Entry[]>([]);
+    const [speakerMessages, setSpeakerMessages] = useState<SpeakerMessage[]>([]);
     const [loading, setLoading] = useState(true);
     const [currentTime, setCurrentTime] = useState(new Date());
     const [view, setView] = useState<'events' | 'class' | 'missing' | 'input' | 'feed'>('events');
@@ -26,35 +29,50 @@ export default function SpeakerPage() {
     const [favorites, setFavorites] = useState<Set<string>>(new Set());
     const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
     const [selectedFeedClasses, setSelectedFeedClasses] = useState<string[]>([]);
+    const [newComment, setNewComment] = useState('');
+    const [publishing, setPublishing] = useState(false);
 
     useEffect(() => {
-        loadData();
-        const interval = setInterval(() => {
-            setCurrentTime(new Date());
-            loadData(); // Refresh data
-        }, 5000); // Refresh every 5 seconds
-        return () => clearInterval(interval);
-    }, [eventId]);
+        setLoading(true);
 
-    const loadData = () => {
-        const storedEvents = localStorage.getItem('events');
-        if (storedEvents) {
-            const events = JSON.parse(storedEvents);
-            const event = events.find((e: any) => e.id === eventId);
-            if (event) {
-                setData({
-                    eventId,
-                    entries: event.entries || [],
-                    classes: event.classes || [],
-                    eventName: event.name,
-                });
-                if (!selectedClass && event.classes?.length > 0) {
-                    setSelectedClass(event.classes[0].id);
+        // 1. Get Event Metadata
+        getEvent(eventId).then(evt => {
+            if (evt) {
+                setEvent(evt);
+                if (!selectedClass && evt.classes && evt.classes.length > 0) {
+                    setSelectedClass(evt.classes[0].id);
                 }
             }
-        }
-        setLoading(false);
-    };
+            setLoading(false);
+        });
+
+        // 2. Subscribe to Entries
+        const unsubscribeEntries = subscribeToEntries(eventId, (updatedEntries) => {
+            setEntries(updatedEntries);
+        });
+
+        // 3. Subscribe to Speaker Messages
+        const unsubscribeMessages = subscribeToSpeakerMessages(eventId, (messages) => {
+            setSpeakerMessages(messages);
+        });
+
+        const interval = setInterval(() => {
+            setCurrentTime(new Date());
+        }, 1000);
+
+        return () => {
+            unsubscribeEntries();
+            unsubscribeMessages();
+            clearInterval(interval);
+        };
+    }, [eventId]);
+
+    const data = event ? {
+        eventId,
+        entries,
+        classes: event.classes || [],
+        eventName: event.name,
+    } : null;
 
     // Recent finishes (last 10)
     const recentFinishes = useMemo(() => {
@@ -123,37 +141,24 @@ export default function SpeakerPage() {
         return data?.classes.find((c: any) => c.id === classId)?.name || '';
     };
 
-    const [comments, setComments] = useState<any[]>([]);
-    const [newComment, setNewComment] = useState('');
-    const [publishing, setPublishing] = useState(false);
-
-    useEffect(() => {
-        // Load initial comments
-        const stored = localStorage.getItem(`comments-${eventId}`);
-        if (stored) setComments(JSON.parse(stored));
-    }, [eventId]);
 
     const handlePostComment = async () => {
         if (!newComment.trim()) return;
         setPublishing(true);
 
-        const comment = {
-            id: Date.now().toString(),
-            text: newComment,
-            timestamp: new Date().toISOString(),
-        };
-
-        const updated = [comment, ...comments];
-        setComments(updated);
-        localStorage.setItem(`comments-${eventId}`, JSON.stringify(updated));
-        setNewComment('');
-        setPublishing(false);
+        try {
+            await addSpeakerMessage(eventId, newComment, 'info', 'Speaker');
+            setNewComment('');
+        } catch (error) {
+            console.error('Error adding message:', error);
+        } finally {
+            setPublishing(false);
+        }
     };
 
     const handleDeleteComment = (id: string) => {
-        const updated = comments.filter(c => c.id !== id);
-        setComments(updated);
-        localStorage.setItem(`comments-${eventId}`, JSON.stringify(updated));
+        // We might want to implement deleteSpeakerMessage later
+        console.log('Delete message:', id);
     };
 
     if (loading) {
@@ -348,13 +353,8 @@ export default function SpeakerPage() {
                                         { code: '100', name: 'Mål' },
                                     ]}
                                     onPunch={(entryId, code, time) => {
-                                        // Simple local update for demo
-                                        const entry = data.entries.find(e => e.id === entryId);
-                                        if (entry) {
-                                            entry.status = 'finished';
-                                            entry.finishTime = time.toISOString();
-                                            loadData();
-                                        }
+                                        // Simple log for now, actual implementation should call a service
+                                        console.log('Punch:', entryId, code, time);
                                     }}
                                 />
                             </div>
@@ -399,13 +399,13 @@ export default function SpeakerPage() {
                                 <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Senaste sändningar</h3>
                             </div>
                             <div className="divide-y divide-slate-800/50 max-h-96 overflow-y-auto">
-                                {comments.map(comment => (
+                                {speakerMessages.map(comment => (
                                     <div key={comment.id} className="p-4 group">
                                         <div className="flex justify-between items-start mb-2">
                                             <span className="text-[10px] font-mono font-black text-slate-600">{new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                             <button onClick={() => handleDeleteComment(comment.id)} className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-500 transition-all text-xs">🗑️</button>
                                         </div>
-                                        <p className="text-xs text-slate-300 leading-relaxed font-medium">{comment.text}</p>
+                                        <p className="text-xs text-slate-300 leading-relaxed font-medium">{comment.message}</p>
                                     </div>
                                 ))}
                             </div>

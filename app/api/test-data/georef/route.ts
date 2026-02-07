@@ -62,7 +62,7 @@ function sweref99TmToWgs84(x: number, y: number): { lat: number; lng: number } {
 
 export async function GET() {
     try {
-        const filePath = path.join(process.cwd(), 'testtävling', 'äns', 'karta_bildfil.pgw');
+        const filePath = path.join(process.cwd(), 'data', 'ans', 'worldfile.pgw');
         const content = await readFile(filePath, 'utf-8');
         const lines = content.trim().split('\n');
 

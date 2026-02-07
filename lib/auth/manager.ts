@@ -26,6 +26,7 @@ export interface AuthUser {
     photoURL: string | null;
     role: UserRole;
     eventorId?: string;
+    clubId?: string;
 }
 
 export type UserRole = 'runner' | 'organizer' | 'admin';
@@ -213,6 +214,7 @@ export class AuthManager {
             displayName: user.displayName,
             photoURL: user.photoURL,
             role,
+            clubId: 'sk-level-123', // Demo club ID
         };
 
         this.currentUser = authUser;

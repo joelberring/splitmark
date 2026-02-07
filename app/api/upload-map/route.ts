@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
+import { sanitizeFilename } from '@/lib/import/filename-utils';
 
 export async function POST(request: NextRequest) {
     const data = await request.formData();
@@ -19,7 +20,8 @@ export async function POST(request: NextRequest) {
     await mkdir(uploadDir, { recursive: true });
 
     // Sanitize filename
-    const filename = `${raceId}-${Date.now()}-${file.name.replace(/[^a-z0-9.]/gi, '_')}`;
+    const safeFilename = sanitizeFilename(file.name);
+    const filename = `${raceId}-${Date.now()}-${safeFilename}`;
     const filepath = path.join(uploadDir, filename);
 
     try {

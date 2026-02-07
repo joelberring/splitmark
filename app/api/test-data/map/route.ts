@@ -4,10 +4,10 @@ import path from 'path';
 
 export async function GET() {
     try {
-        const filePath = path.join(process.cwd(), 'testtävling', 'äns', 'karta_bildfil.png');
+        const filePath = path.join(process.cwd(), 'public', 'test-map.png');
         const content = await readFile(filePath);
 
-        return new NextResponse(content, {
+        return new NextResponse(new Uint8Array(content), {
             headers: {
                 'Content-Type': 'image/png',
                 'Cache-Control': 'public, max-age=31536000',

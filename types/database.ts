@@ -47,6 +47,12 @@ export interface DBMap {
     createdAt: Date;
 }
 
+export interface DBMapTile {
+    url: string;
+    data: ArrayBuffer;
+    timestamp: Date;
+}
+
 // ============= GPS Tracks =============
 
 export interface DBTrack {

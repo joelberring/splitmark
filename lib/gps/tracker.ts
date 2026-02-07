@@ -8,11 +8,18 @@ import type { VirtualControl, VirtualPunch } from '@/types/virtual-controls';
 import { db } from '../db';
 import { VirtualPunchDetector, type PunchDetectorCallbacks } from './virtual-punch';
 
+export interface PrivacyZone {
+    lat: number;
+    lng: number;
+    radius: number; // in meters
+}
+
 export interface TrackingOptions {
     enableHighAccuracy?: boolean;
     maximumAge?: number;
     timeout?: number;
     distanceFilter?: number; // Minimum distance in meters
+    privacyZones?: PrivacyZone[];
 }
 
 export class GPSTracker {
@@ -22,6 +29,13 @@ export class GPSTracker {
     private points: GPSPoint[] = [];
     private lastPoint: GPSPoint | null = null;
     private options: TrackingOptions;
+
+    // Live telemetry
+    private ws: WebSocket | null = null;
+    private lastBroadcastTime: number = 0;
+    private broadcastInterval: number = 2000; // 2 seconds
+    private raceId: string | null = null;
+    private runnerId: string | null = null;
 
     // Virtual punch detection
     private punchDetector: VirtualPunchDetector | null = null;
@@ -49,6 +63,8 @@ export class GPSTracker {
             throw new Error('Geolocation not supported');
         }
 
+        this.raceId = eventId || null;
+
         // Create new track in database
         const trackId = crypto.randomUUID();
         await db.tracks.add({
@@ -64,6 +80,11 @@ export class GPSTracker {
         this.currentTrackId = trackId;
         this.points = [];
         this.recording = true;
+
+        // Initialize Live Telemetry if eventId is present
+        if (eventId) {
+            this.initLiveTelemetry(eventId);
+        }
 
         // Start watching position
         this.watchId = navigator.geolocation.watchPosition(
@@ -93,6 +114,12 @@ export class GPSTracker {
             this.watchId = null;
         }
 
+        // Close telemetry
+        if (this.ws) {
+            this.ws.close();
+            this.ws = null;
+        }
+
         // Update track in database
         await db.tracks.update(this.currentTrackId, {
             endTime: new Date(),
@@ -105,6 +132,64 @@ export class GPSTracker {
         this.currentTrackId = null;
         this.points = [];
         this.lastPoint = null;
+        this.raceId = null;
+    }
+
+    /**
+     * Initialize live telemetry connection
+     */
+    private initLiveTelemetry(raceId: string) {
+        const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/ws';
+        try {
+            this.ws = new WebSocket(WS_URL);
+            this.ws.onopen = () => {
+                console.log('Telemetry broadcast started for race:', raceId);
+                // Subscribe/Identify as sender if needed
+                // this.ws?.send(JSON.stringify({ type: 'init', role: 'sender', raceId }));
+            };
+            this.ws.onerror = (e) => console.error('Telemetry WebSocket error:', e);
+            this.ws.onclose = () => {
+                if (this.recording && this.raceId) {
+                    setTimeout(() => this.initLiveTelemetry(this.raceId!), 5000);
+                }
+            };
+        } catch (e) {
+            console.error('Failed to init telemetry:', e);
+        }
+    }
+
+    /**
+     * Broadcast position to live gateway
+     */
+    private broadcastPosition(point: GPSPoint) {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.raceId) return;
+
+        const now = Date.now();
+        if (now - this.lastBroadcastTime < this.broadcastInterval) return;
+
+        // Check Privacy Zones
+        if (this.options.privacyZones) {
+            for (const zone of this.options.privacyZones) {
+                const distance = this.calculateDistance(point, { lat: zone.lat, lng: zone.lng } as GPSPoint);
+                if (distance < zone.radius) {
+                    // Inside privacy zone - don't broadcast coordinates
+                    return;
+                }
+            }
+        }
+
+        const packet = {
+            race_id: this.raceId,
+            runner_id: this.currentTrackId, // Use localTrackId as runnerId for now
+            lat: point.lat,
+            lon: point.lng,
+            timestamp: point.timestamp.getTime(),
+            speed: point.speed,
+            alt: point.alt,
+        };
+
+        this.ws.send(JSON.stringify(packet));
+        this.lastBroadcastTime = now;
     }
 
     /**
@@ -238,6 +323,9 @@ export class GPSTracker {
         for (const callback of this.positionCallbacks) {
             callback(point);
         }
+
+        // Broadcast to live telemetry
+        this.broadcastPosition(point);
 
         // Apply distance filter for track recording
         if (this.lastPoint && this.options.distanceFilter) {

@@ -17,6 +17,7 @@ const navItems = [
     { href: '/results', label: 'Resultat', icon: '🏆' },
     { href: '/splits', label: 'Sträcktider', icon: '📊' },
     { href: '/missing', label: 'Kvar i skogen', icon: '🌲' },
+    { href: '/ekonomi', label: 'Ekonomi', icon: '💰' },
     { href: '/teams', label: 'Lag & Stafett', icon: '👥' },
 ];
 
@@ -48,8 +49,8 @@ export default function EventSidebar({ eventId, eventName }: EventSidebarProps) 
                             key={item.href}
                             href={fullPath}
                             className={`flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-colors ${isActive
-                                    ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 font-semibold'
-                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 font-semibold'
+                                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                                 }`}
                         >
                             <span className="text-lg">{item.icon}</span>

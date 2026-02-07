@@ -41,10 +41,17 @@ export default function AppHeader() {
 
                     {/* Desktop Navigation */}
                     <nav className="hidden md:flex items-center gap-8">
+                        <NavLink href="/feed" label="Flöde" active={isActive('/feed')} />
                         <NavLink href="/events" label="Tävlingar" active={isActive('/events')} />
-                        <NavLink href="/live" label="Live" active={isActive('/live')} />
+                        <NavLink href="/spectate" label="Live" active={isActive('/spectate')} />
                         <NavLink href="/discover" label="Utforska" active={isActive('/discover')} />
-                        <NavLink href="/map" label="Karta" active={isActive('/map')} />
+                        {user && (
+                            <NavLink
+                                href={user.clubId ? `/club/${user.clubId}` : '/join-club'}
+                                label="Klubb"
+                                active={pathname?.startsWith('/club')}
+                            />
+                        )}
                     </nav>
 
                     {/* Auth / Action */}
@@ -86,20 +93,6 @@ export default function AppHeader() {
                 </div>
             </header>
 
-            {/* Mobile Navigation Bar (Bottom) */}
-            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur-lg border-t border-slate-800 pb-safe z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.3)]">
-                <div className="flex justify-around items-center h-16">
-                    <MobileNavLink href="/" icon="🏠" label="Hem" active={isActive('/')} />
-                    <MobileNavLink href="/events" icon="📅" label="Tävlingar" active={isActive('/events')} />
-                    <MobileNavLink href="/live" icon="🔴" label="Live" active={isActive('/live')} />
-                    <MobileNavLink href="/map" icon="🗺️" label="Karta" active={isActive('/map')} />
-                    {user ? (
-                        <MobileNavLink href="/profile" icon="👤" label="Profil" active={isActive('/profile')} />
-                    ) : (
-                        <MobileNavLink href="/login" icon="🔐" label="Login" active={isActive('/login')} />
-                    )}
-                </div>
-            </div>
         </>
     );
 }

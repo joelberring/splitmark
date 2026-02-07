@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import HelpButton from '@/components/HelpButton';
-import { EventData, Entry, saveEvent, calculateResultTime } from './shared';
+import { EventData, Entry, calculateResultTime } from './shared';
+import { saveEntry } from '@/lib/firestore/entries';
 import ResultEditModal from './ResultEditModal';
 
 export default function TimingTab({ event, setEvent }: { event: EventData; setEvent: (e: EventData) => void }) {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
     const [manualTime, setManualTime] = useState('');
-    const [selectedStatus, setSelectedStatus] = useState<Entry['status']>('finished');
+    type UIStatus = Entry['status'] | 'mp';
+    const [selectedStatus, setSelectedStatus] = useState<UIStatus>('finished');
     const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
 
     // Filter entries based on search
@@ -18,34 +20,41 @@ export default function TimingTab({ event, setEvent }: { event: EventData; setEv
         ).slice(0, 5)
         : [];
 
-    const handleRecordFinish = (entryId: string, time?: string) => {
+    const handleRecordFinish = async (entryId: string, time?: string) => {
         const entry = event.entries.find(e => e.id === entryId);
         if (!entry) return;
 
         const now = new Date();
         const finishTime = time || `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
 
-        const updatedEntries = event.entries.map(e => {
-            if (e.id === entryId) {
-                const resultTime = e.startTime ? calculateResultTime(e.startTime, finishTime) : undefined;
-                return {
-                    ...e,
-                    finishTime,
-                    resultTime,
-                    status: selectedStatus === 'registered' ? 'finished' : selectedStatus, // Default to finished if not specified
-                };
-            }
-            return e;
-        });
+        const resultTime = entry.startTime ? calculateResultTime(entry.startTime, finishTime) : undefined;
 
-        const updatedEvent = { ...event, entries: updatedEntries };
-        setEvent(updatedEvent);
-        saveEvent(updatedEvent);
+        let status: any = 'finished';
+        let resultStatus: any = 'ok';
 
-        // Reset search and selection
-        setSearchQuery('');
-        setSelectedEntryId(null);
-        setManualTime('');
+        if (selectedStatus === 'mp') resultStatus = 'mp';
+        else if (selectedStatus === 'dnf') { status = 'dnf'; resultStatus = 'dnf'; }
+        else if (selectedStatus === 'dns') { status = 'dns'; resultStatus = 'dns'; }
+
+        const updatedEntry = {
+            ...entry,
+            finishTime,
+            resultTime,
+            status,
+            resultStatus,
+            updatedAt: new Date().toISOString()
+        };
+
+        try {
+            await saveEntry(event.id, updatedEntry as any);
+            // Reset search and selection
+            setSearchQuery('');
+            setSelectedEntryId(null);
+            setManualTime('');
+        } catch (err) {
+            console.error('Failed to record finish:', err);
+            alert('Misslyckades att registrera målgång.');
+        }
     };
 
     const recentFinishes = [...event.entries]
@@ -158,8 +167,8 @@ export default function TimingTab({ event, setEvent }: { event: EventData; setEv
                                         className="w-full flex items-center justify-between p-3 bg-slate-800/30 hover:bg-slate-800/60 border border-slate-800 rounded-lg transition-all text-left group"
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className={`w-2 h-8 rounded-full ${entry.status === 'finished' ? 'bg-emerald-500' :
-                                                entry.status === 'mp' ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' :
+                                            <div className={`w-2 h-8 rounded-full ${(entry.resultStatus === 'ok' || entry.status === 'finished') ? 'bg-emerald-500' :
+                                                entry.resultStatus === 'mp' ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' :
                                                     'bg-amber-500'
                                                 }`}></div>
                                             <div>
@@ -169,9 +178,9 @@ export default function TimingTab({ event, setEvent }: { event: EventData; setEv
                                         </div>
                                         <div className="text-right">
                                             <div className="font-mono text-white font-bold">{entry.finishTime}</div>
-                                            <div className={`text-[10px] font-black uppercase tracking-widest ${entry.status === 'finished' ? 'text-emerald-500' : 'text-red-400'
+                                            <div className={`text-[10px] font-black uppercase tracking-widest ${(entry.resultStatus === 'ok' || entry.status === 'finished') ? 'text-emerald-500' : 'text-red-400'
                                                 }`}>
-                                                {entry.status === 'finished' ? `OK · ${entry.resultTime}` : entry.status.toUpperCase()}
+                                                {(entry.resultStatus === 'ok' || entry.status === 'finished') ? `OK · ${entry.resultTime}` : (entry.resultStatus || entry.status).toUpperCase()}
                                             </div>
                                         </div>
                                     </button>

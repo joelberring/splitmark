@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // Help topics database (MeOS-inspired)
 const HELP_TOPICS: Record<string, HelpContent> = {
@@ -362,12 +362,19 @@ interface HelpButtonProps {
     label?: string;
 }
 
-export default function HelpButton({ topic, size = 'md', label }: HelpButtonProps) {
+export default function HelpButton({ topic: initialTopic, size = 'md', label }: HelpButtonProps) {
     const [isOpen, setIsOpen] = useState(false);
-    const helpContent = HELP_TOPICS[topic];
+    const [currentTopic, setCurrentTopic] = useState(initialTopic);
+
+    // Update currentTopic if prop changes
+    useEffect(() => {
+        setCurrentTopic(initialTopic);
+    }, [initialTopic]);
+
+    const helpContent = HELP_TOPICS[currentTopic];
 
     if (!helpContent) {
-        console.warn(`Help topic not found: ${topic}`);
+        console.warn(`Help topic not found: ${initialTopic}`);
         return null;
     }
 
@@ -429,8 +436,7 @@ export default function HelpButton({ topic, size = 'md', label }: HelpButtonProp
                                                 <button
                                                     key={relatedTopic}
                                                     onClick={() => {
-                                                        // Navigate to related topic
-                                                        // For simplicity, just show in same modal
+                                                        setCurrentTopic(relatedTopic);
                                                     }}
                                                     className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                                                 >

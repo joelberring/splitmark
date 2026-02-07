@@ -5,7 +5,6 @@ import { useAuthState } from '@/lib/auth/hooks';
 import { authManager } from '@/lib/auth/manager';
 import { useRouter } from 'next/navigation';
 import PageHeader from '@/components/PageHeader';
-import BottomNavigation from '@/components/BottomNavigation';
 import Link from 'next/link';
 import ClubSearch from '@/components/ClubSearch';
 import { CLUBS, DISTRICTS } from '@/types/clubs';
@@ -106,7 +105,7 @@ export default function ProfilePage() {
     const availableClasses = getAvailableClasses(profile.gender, profile.birthYear);
 
     return (
-        <div className="min-h-screen flex flex-col bg-slate-950 text-white pb-24">
+        <div className="min-h-screen flex flex-col bg-slate-950 text-white">
             <PageHeader title="Min Profil" showLogo />
 
             <main className="flex-1 px-4 py-6 max-w-lg mx-auto w-full">
@@ -268,8 +267,6 @@ export default function ProfilePage() {
                     Logga ut
                 </button>
             </main>
-
-            <BottomNavigation />
         </div>
     );
 }

@@ -6,6 +6,9 @@ import Link from 'next/link';
 import HelpButton from '@/components/HelpButton';
 import ExportPanel from '@/components/Admin/ExportPanel';
 import type { Entry, EntryWithResult, ResultStatus } from '@/types/entry';
+import { getEvent } from '@/lib/firestore/events';
+import { subscribeToEntries, saveEntry } from '@/lib/firestore/entries';
+import { subscribeToResults } from '@/lib/firestore/results';
 
 export default function ResultsPage() {
     const params = useParams();
@@ -25,34 +28,45 @@ export default function ResultsPage() {
     const [showExportPanel, setShowExportPanel] = useState(false);
 
     useEffect(() => {
-        loadData();
+        let unsubscribeEntries = () => { };
+
+        const init = async () => {
+            try {
+                const event = await getEvent(eventId);
+                if (event) {
+                    setEventName(event.name);
+                    setClasses(event.classes || []);
+
+                    unsubscribeEntries = subscribeToEntries(eventId, (updatedEntries) => {
+                        setEntries(updatedEntries);
+                        setLoading(false);
+                    });
+                } else {
+                    setLoading(false);
+                }
+            } catch (err) {
+                console.error('Failed to load results data:', err);
+                setLoading(false);
+            }
+        };
+
+        init();
+
+        return () => unsubscribeEntries();
     }, [eventId]);
 
-    const loadData = () => {
-        const storedEvents = localStorage.getItem('events');
-        if (storedEvents) {
-            const events = JSON.parse(storedEvents);
-            const event = events.find((e: any) => e.id === eventId);
-            if (event) {
-                setEventName(event.name);
-                setClasses(event.classes || []);
-                setEntries(event.entries || []);
-            }
+    const handleUpdateEntry = async (entry: Entry, updates: Partial<Entry>) => {
+        try {
+            await saveEntry(eventId, {
+                ...entry,
+                ...updates,
+                updatedAt: new Date().toISOString()
+            } as Entry);
+        } catch (err) {
+            console.error('Failed to update result:', err);
+            alert('Misslyckades att spara ändringen.');
         }
-        setLoading(false);
-    };
-
-    const saveEntries = (newEntries: Entry[]) => {
-        const storedEvents = localStorage.getItem('events');
-        if (storedEvents) {
-            const events = JSON.parse(storedEvents);
-            const index = events.findIndex((e: any) => e.id === eventId);
-            if (index >= 0) {
-                events[index].entries = newEntries;
-                localStorage.setItem('events', JSON.stringify(events));
-            }
-        }
-        setEntries(newEntries);
+        setEditingEntry(null);
     };
 
     // Calculate results by class
@@ -107,15 +121,6 @@ export default function ResultsPage() {
         dns: entries.filter(e => e.status === 'dns').length,
     }), [entries]);
 
-    const handleUpdateEntry = (entry: Entry, updates: Partial<Entry>) => {
-        const updated = entries.map(e =>
-            e.id === entry.id
-                ? { ...e, ...updates, updatedAt: new Date().toISOString() }
-                : e
-        );
-        saveEntries(updated);
-        setEditingEntry(null);
-    };
 
     const formatTime = (startTime?: string, finishTime?: string): string => {
         if (!startTime || !finishTime) return '-';

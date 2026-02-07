@@ -32,14 +32,33 @@ export interface FirestoreEvent {
     type: string;
     classification: string;
     status: 'draft' | 'active' | 'completed';
-    classes: EventClass[];
-    entries: EventEntry[];
-    results?: EventResult[]; // Added detailed results
-    courses?: EventCourse[]; // Added course definitions
-    worldFile?: any;          // Added worldFile for map calibration
+    classes?: EventClass[];
+    courses?: EventCourse[];
+    ppenControls?: any[];
+    ppenCourses?: any[];
+    map?: {
+        imageUrl: string;
+        name?: string;
+        bounds?: any;
+        scale?: number;
+    };
+    calibration?: any;
+    calibrationAnchors?: any;
+    worldFile?: any;
+    organizer?: string;
+    description?: string;
+    googleMapsUrl?: string;
+    attachments?: { id: string; name: string; url: string; type: string }[];
+    images?: { id: string; url: string }[];
+    visibility?: 'public' | 'club' | 'private';
+    clubId?: string;
+    entries?: EventEntry[];
+    results?: any[];
     createdAt: Date;
     updatedAt: Date;
     createdBy?: string;
+    externalId?: string;
+    source?: 'manual' | 'eventor' | 'trail';
 }
 
 export interface EventClass {
@@ -47,32 +66,30 @@ export interface EventClass {
     name: string;
     courseId?: string;
     courseName?: string;
+    distance?: string;
     entryCount: number;
+    hasPool?: boolean;
+    forkKeys?: string[];
 }
 
 export interface EventEntry {
     id: string;
-    name: string;
+    firstName?: string;
+    lastName?: string;
+    name?: string; // Standardize to have both or one
     club: string;
-    classId?: string;
+    clubName?: string;
+    classId: string;
     className?: string;
     siCard?: string;
     startTime?: string;
-    status: 'registered' | 'started' | 'finished' | 'dns' | 'dnf';
-}
-
-export interface EventResult {
-    entryId: string;
-    personId?: string;
-    name: string;
-    club: string;
-    classId: string;
-    className: string;
-    time: number; // seconds or tenths? Parser uses int.
-    timeBehind: number;
-    position: number;
-    status: string;
-    splits: { controlCode: string; time: number }[];
+    status: 'registered' | 'confirmed' | 'started' | 'finished' | 'dns' | 'dnf' | 'dsq' | 'cancelled';
+    resultStatus?: 'ok' | 'mp' | 'dnf' | 'dsq' | 'dns' | 'ot';
+    time?: number;
+    timeBehind?: number;
+    position?: number;
+    splitTimes?: { controlCode: string; time: number }[];
+    forkKey?: string;
 }
 
 export interface EventCourse {
@@ -91,9 +108,10 @@ export interface EventCourse {
 export async function getEvents(): Promise<FirestoreEvent[]> {
     // Check if Firebase is configured
     if (!isFirebaseConfigured() || !firestore) {
-        console.log('Firestore not configured, using localStorage');
+        console.log('Splitmark: Using Local Mode (Firebase not configured)');
         return getEventsFromLocalStorage();
     }
+    console.log('Splitmark: Fetching events from Cloud/Firestore...');
 
     try {
         const eventsRef = collection(firestore, COLLECTIONS.EVENTS);
@@ -146,10 +164,11 @@ export async function getEvent(eventId: string): Promise<FirestoreEvent | null> 
  */
 export async function saveEvent(event: Partial<FirestoreEvent> & { id: string }): Promise<void> {
     if (!isFirebaseConfigured() || !firestore) {
-        console.log('Firestore not configured, saving to localStorage');
+        process.env.NODE_ENV !== 'production' && console.log('Using Local Mode for saveEvent');
         saveEventToLocalStorage(event);
         return;
     }
+    process.env.NODE_ENV !== 'production' && console.log('Using Cloud Mode for saveEvent');
 
     try {
         const eventRef = doc(firestore, COLLECTIONS.EVENTS, event.id);
@@ -159,9 +178,10 @@ export async function saveEvent(event: Partial<FirestoreEvent> & { id: string })
             updatedAt: Timestamp.now(),
         };
 
-        // Remove undefined values
+        // Remove undefined values and large nested arrays that are now in subcollections
+        const keysToRemove = ['entries', 'results'];
         Object.keys(eventData).forEach(key => {
-            if ((eventData as any)[key] === undefined) {
+            if ((eventData as any)[key] === undefined || keysToRemove.includes(key)) {
                 delete (eventData as any)[key];
             }
         });

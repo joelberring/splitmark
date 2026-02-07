@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { useAuthState } from '@/lib/auth/hooks';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
-import BottomNavigation from '@/components/BottomNavigation';
 import { seedDemoEventsIfEmpty } from '@/lib/demo-data';
+import { getEvents } from '@/lib/firestore/events';
 
 interface EventData {
     id: string;
@@ -19,78 +19,112 @@ interface EventData {
     isLive?: boolean;
     canRegister?: boolean;
     resultsUrl?: string;
+    visibility?: string;
+    clubId?: string;
+    type?: string;
 }
 
 export default function EventsPage() {
     const { user } = useAuthState();
     const [events, setEvents] = useState<EventData[]>([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState<'upcoming' | 'past'>('upcoming');
+    const [filter, setFilter] = useState<'upcoming' | 'past' | 'trail'>('upcoming');
 
     useEffect(() => {
-        seedDemoEventsIfEmpty();
-        loadEvents();
+        const init = async () => {
+            // Seed in background, don't await it
+            seedDemoEventsIfEmpty().catch(err => console.warn("Background seeding failed:", err));
+
+            try {
+                await loadEvents();
+            } catch (error) {
+                console.error("Init failed:", error);
+                setLoading(false);
+            }
+        };
+        init();
     }, [filter]);
 
-    const loadEvents = () => {
+    const loadEvents = async () => {
         setLoading(true);
+        try {
+            // Add a timeout to the fetch to prevent permanent loading skeletons
+            const fetchWithTimeout = Promise.race([
+                getEvents(),
+                new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error("Timeout fetching events")), 8000))
+            ]);
 
-        const stored = localStorage.getItem('events');
-        if (stored) {
-            const rawEvents = JSON.parse(stored);
+            const rawEvents = await fetchWithTimeout;
             const now = new Date();
 
-            const mapped: EventData[] = rawEvents.map((e: any) => {
-                const eventDate = new Date(e.date);
+            const mapped: EventData[] = (rawEvents || []).map((e: any) => {
+                const eventDate = new Date(e.date || now);
                 const isPast = eventDate < now;
                 const isToday = eventDate.toDateString() === now.toDateString();
 
                 return {
                     id: e.id,
-                    name: e.name,
-                    date: e.date,
+                    name: e.name || 'Namnlös tävling',
+                    date: e.date || now.toISOString().split('T')[0],
                     time: e.time,
                     location: e.location || 'Okänd plats',
                     classification: e.classification,
                     organizer: e.organizer,
-                    participants: e.entries?.length || e.classes?.reduce((sum: number, c: any) => sum + (c.entryCount || 0), 0) || 0,
+                    participants: (e.entries?.length) ||
+                        (Array.isArray(e.classes) ? e.classes.reduce((sum: number, c: any) => sum + (Number(c.entryCount) || 0), 0) : 0),
                     isLive: isToday || e.status === 'live',
                     canRegister: !isPast && e.status !== 'completed',
                     resultsUrl: e.resultsUrl,
                 };
             });
 
-            // Filter based on tab and visibility
-            const userProfileStored = localStorage.getItem('userProfile');
-            const userProfile = userProfileStored ? JSON.parse(userProfileStored) : null;
-            const userClubId = userProfile?.clubId;
+            // Visibility logic
+            let userClubId: string | undefined = undefined;
+            try {
+                const userProfileStored = localStorage.getItem('userProfile');
+                if (userProfileStored) {
+                    const userProfile = JSON.parse(userProfileStored);
+                    userClubId = userProfile?.clubId;
+                }
+            } catch (e) { /* ignore */ }
 
-            const filtered = mapped.filter((e: any) => {
-                const eventDate = new Date(e.date);
-                const isCorrectTab = filter === 'upcoming' ? eventDate >= now : eventDate < now;
+            const filtered = mapped.filter((event: EventData) => {
+                const isVisible =
+                    !event.visibility || // If visibility is not set, assume public
+                    event.visibility === 'public' ||
+                    (event.visibility === 'club' && event.clubId === userClubId);
 
-                // Visibility logic
-                const rawEvent = rawEvents.find((re: any) => re.id === e.id);
-                const isVisible = !rawEvent.visibility ||
-                    rawEvent.visibility === 'public' ||
-                    (rawEvent.visibility === 'club' && rawEvent.clubId === userClubId);
+                if (!isVisible) return false;
 
-                return isCorrectTab && isVisible;
+                const eventDate = new Date(event.date);
+
+                if (filter === 'upcoming') return eventDate >= now;
+                if (filter === 'past') return eventDate < now;
+                if (filter === 'trail') return event.type === 'Trail';
+
+                return true;
             });
 
-            // Sort by date
             filtered.sort((a, b) => {
                 const dateA = new Date(a.date).getTime();
                 const dateB = new Date(b.date).getTime();
-                return filter === 'upcoming' ? dateA - dateB : dateB - dateA;
+                if (filter === 'upcoming') return dateA - dateB;
+                return dateB - dateA;
             });
 
             setEvents(filtered);
-        } else {
-            setEvents([]);
+        } catch (error) {
+            console.error('Error loading events:', error);
+            // On error, try one last time from localStorage directly as absolute fallback
+            try {
+                const local = localStorage.getItem('events');
+                if (local) setEvents(JSON.parse(local).slice(0, 20));
+            } catch (e) {
+                setEvents([]);
+            }
+        } finally {
+            setLoading(false);
         }
-
-        setLoading(false);
     };
 
     const formatDate = (dateStr: string) => {
@@ -103,7 +137,7 @@ export default function EventsPage() {
     };
 
     return (
-        <div className="min-h-screen flex flex-col bg-slate-950 text-white pb-20">
+        <div className="min-h-screen flex flex-col bg-slate-950 text-white">
             <PageHeader
                 title="Tävlingar"
                 showLogo
@@ -139,6 +173,15 @@ export default function EventsPage() {
                 >
                     Tidigare
                 </button>
+                <button
+                    onClick={() => setFilter('trail')}
+                    className={`px-5 py-2.5 rounded-full text-sm font-bold uppercase tracking-wider transition-all ${filter === 'trail'
+                        ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30'
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
+                        }`}
+                >
+                    Trail
+                </button>
             </div>
 
             {/* Events List */}
@@ -161,8 +204,8 @@ export default function EventsPage() {
                         {events.map((event) => (
                             <Link
                                 key={event.id}
-                                href={event.resultsUrl || `/events/${event.id}`}
-                                className="block bg-slate-900 rounded-xl overflow-hidden border-l-4 border-emerald-500 hover:bg-slate-800/80 transition-all group"
+                                href={event.isLive ? `/spectate/${event.id}` : (event.resultsUrl || `/events/${event.id}`)}
+                                className={`block bg-slate-900 rounded-xl overflow-hidden border-l-4 ${event.isLive ? 'border-red-500' : 'border-emerald-500'} hover:bg-slate-800/80 transition-all group`}
                             >
                                 <div className="p-4 flex items-center justify-between gap-4">
                                     <div className="flex-1 min-w-0">
@@ -221,7 +264,6 @@ export default function EventsPage() {
                 )}
             </main>
 
-            <BottomNavigation />
         </div>
     );
 }

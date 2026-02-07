@@ -1,7 +1,9 @@
 /**
- * Demo Data Seeder - Seeds localStorage with complete test events
+ * Demo Data Seeder - Seeds persistence with complete test events
  * This allows testing of registration, course assignment, timing, etc.
  */
+
+import { saveEvent, getEvents } from './firestore/events';
 
 export interface DemoEvent {
     id: string;
@@ -257,48 +259,41 @@ export const DEMO_EVENTS: DemoEvent[] = [
 ];
 
 /**
- * Seed localStorage with demo events if none exist
+ * Seed Firestore/localStorage with demo events if none exist
  */
-export function seedDemoEventsIfEmpty(): boolean {
-    if (typeof window === 'undefined') return false;
-
-    const existing = localStorage.getItem('events');
-    if (existing) {
-        const events = JSON.parse(existing);
-        if (events.length > 0) {
-            return false; // Already have events
-        }
+export async function seedDemoEventsIfEmpty(): Promise<boolean> {
+    const existing = await getEvents();
+    if (existing && existing.length > 0) {
+        return false; // Already have events
     }
 
     // Seed with demo events
-    localStorage.setItem('events', JSON.stringify(DEMO_EVENTS));
+    for (const demo of DEMO_EVENTS) {
+        await saveEvent(demo as any);
+    }
     return true;
 }
 
 /**
- * Force seed localStorage with demo events (overwrites existing)
+ * Force seed with demo events (overwrites existing)
  */
-export function forceSeedDemoEvents(): void {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('events', JSON.stringify(DEMO_EVENTS));
+export async function forceSeedDemoEvents(): Promise<void> {
+    for (const demo of DEMO_EVENTS) {
+        await saveEvent(demo as any);
+    }
 }
 
 /**
  * Add demo events to existing events
  */
-export function addDemoEvents(): void {
-    if (typeof window === 'undefined') return;
-
-    const existing = localStorage.getItem('events');
-    const events = existing ? JSON.parse(existing) : [];
+export async function addDemoEvents(): Promise<void> {
+    const events = await getEvents();
 
     // Add demo events with unique IDs
-    DEMO_EVENTS.forEach(demo => {
+    for (const demo of DEMO_EVENTS) {
         const exists = events.some((e: any) => e.id === demo.id);
         if (!exists) {
-            events.push(demo);
+            await saveEvent(demo as any);
         }
-    });
-
-    localStorage.setItem('events', JSON.stringify(events));
+    }
 }

@@ -59,9 +59,19 @@ export const COLLECTIONS = {
  * Check if Firebase is properly configured
  */
 export function isFirebaseConfigured(): boolean {
-    return !!(
+    const isConfigured = !!(
         firebaseConfig.apiKey &&
+        firebaseConfig.apiKey !== 'demo-key' &&
         firebaseConfig.projectId &&
+        firebaseConfig.projectId !== 'demo-project' &&
         firebaseConfig.projectId !== 'your-project-id'
     );
+
+    if (!isConfigured && typeof window !== 'undefined') {
+        console.warn('Firebase is NOT configured for cloud storage. Falling back to local/demo mode.');
+    } else if (isConfigured && typeof window !== 'undefined') {
+        process.env.NODE_ENV !== 'production' && console.log('Firebase Cloud Storage is active.');
+    }
+
+    return isConfigured;
 }

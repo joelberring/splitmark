@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
-import BottomNavigation from '@/components/BottomNavigation';
 import EventCard from '@/components/Events/EventCard';
 import { EventGridSkeleton } from '@/components/Events/EventCardSkeleton';
 import type { EventFeedItem, EventType, SortOption } from '@/types/discover';
@@ -98,7 +97,7 @@ export default function DiscoverPage() {
     }));
 
     return (
-        <div className="min-h-screen flex flex-col bg-slate-950 text-white pb-20">
+        <div className="min-h-screen flex flex-col bg-slate-950 text-white">
             <PageHeader title="Upptäck" showLogo />
 
             {/* Search */}
@@ -122,8 +121,8 @@ export default function DiscoverPage() {
                         key={filter.id}
                         onClick={() => setActiveType(filter.id)}
                         className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold uppercase tracking-wider whitespace-nowrap transition-all ${activeType === filter.id
-                                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30'
-                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
+                            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30'
+                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
                             }`}
                     >
                         <span>{filter.emoji}</span>
@@ -156,7 +155,6 @@ export default function DiscoverPage() {
                 )}
             </main>
 
-            <BottomNavigation />
         </div>
     );
 }

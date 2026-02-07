@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import HelpButton from '@/components/HelpButton';
+import { parseIOFXML } from '@/lib/parsers/iof-xml-parser';
 
 export default function NewEventPage() {
     const router = useRouter();
@@ -15,7 +16,39 @@ export default function NewEventPage() {
         siCardRequired: true, visibility: 'public' as 'public' | 'club' | 'draft',
         clubId: '',
     });
+    const [importedClasses, setImportedClasses] = useState<any[]>([]);
     const [saving, setSaving] = useState(false);
+    const [importing, setImporting] = useState(false);
+
+    const handleImportXML = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setImporting(true);
+        try {
+            const text = await file.text();
+            const eventData = parseIOFXML(text);
+
+            setFormData(prev => ({
+                ...prev,
+                name: eventData.name || prev.name,
+                date: eventData.startTime ? eventData.startTime.split('T')[0] : prev.date,
+                time: eventData.startTime ? eventData.startTime.split('T')[1]?.substring(0, 5) : prev.time,
+            }));
+
+            if (eventData.classes && eventData.classes.length > 0) {
+                setImportedClasses(eventData.classes);
+            }
+
+            alert(`Importerat data för "${eventData.name}" med ${eventData.classes.length} klasser.`);
+        } catch (error) {
+            console.error('Import failed:', error);
+            alert('Kunde inte läsa XML-filen. Kontrollera att det är en giltig IOF XML v3.0 fil.');
+        } finally {
+            setImporting(false);
+            e.target.value = ''; // Reset input
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -36,7 +69,11 @@ export default function NewEventPage() {
             createdAt: new Date().toISOString(),
             createdBy: 'dev-super-admin',
             status: 'planned',
-            classes: [],
+            classes: importedClasses.map(c => ({
+                id: `class-${Math.random().toString(36).substr(2, 9)}`,
+                name: c.name,
+                course: c.course || null
+            })),
             entries: []
         };
         const existingEvents = JSON.parse(localStorage.getItem('events') || '[]');
@@ -56,6 +93,19 @@ export default function NewEventPage() {
                     </div>
                 </div>
             </header>
+
+            <div className="max-w-4xl mx-auto px-4 mt-6">
+                <div className="bg-emerald-900/10 border border-emerald-500/20 rounded-xl p-4 flex items-center justify-between">
+                    <div>
+                        <h3 className="text-emerald-400 font-bold text-xs uppercase tracking-widest mb-1">Snabbstart med IOF XML</h3>
+                        <p className="text-slate-500 text-[10px]">Ladda upp en fil från Eventor för att automatiskt fylla i tävlingsinfo och klasser.</p>
+                    </div>
+                    <label className="cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all shadow-lg shadow-emerald-900/20">
+                        {importing ? 'Läser...' : '📁 Välj Fil'}
+                        <input type="file" accept=".xml" onChange={handleImportXML} className="hidden" />
+                    </label>
+                </div>
+            </div>
 
             <form onSubmit={handleSubmit} className="max-w-4xl mx-auto px-4 py-8">
                 <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
@@ -152,6 +202,17 @@ export default function NewEventPage() {
                         <h2 className="text-sm font-bold uppercase tracking-widest text-slate-500 mb-4">📝 Beskrivning</h2>
                         <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} placeholder="Beskriv tävlingen..." rows={4} className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 resize-none" />
                     </section>
+
+                    {importedClasses.length > 0 && (
+                        <section className="mb-8 bg-slate-950/50 p-4 rounded-xl border border-slate-800 border-dashed">
+                            <h2 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">📦 Importerade Klasser ({importedClasses.length})</h2>
+                            <div className="flex flex-wrap gap-2">
+                                {importedClasses.map((c, i) => (
+                                    <span key={i} className="text-[10px] bg-slate-800 text-slate-400 px-2 py-1 rounded border border-slate-700">{c.name}</span>
+                                ))}
+                            </div>
+                        </section>
+                    )}
 
                     {/* Actions */}
                     <div className="flex gap-4 pt-4 border-t border-slate-800">

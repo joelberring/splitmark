@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
-import BottomNavigation from '@/components/BottomNavigation';
 import { CLUBS, DISTRICTS, type Club } from '@/types/clubs';
 
 interface UserProfile {
@@ -66,15 +65,12 @@ export default function JoinClubPage() {
     }
 
     return (
-        <div className="min-h-screen flex flex-col bg-slate-950 text-white pb-24">
-            {/* Header */}
-            <header className="bg-gradient-to-b from-emerald-900/50 to-slate-900 border-b border-slate-800 px-4 py-8 text-center">
-                <div className="text-5xl mb-4 opacity-70">🏠</div>
-                <h1 className="text-2xl font-bold uppercase tracking-tight mb-2">Välj din klubb</h1>
-                <p className="text-slate-400 text-sm max-w-md mx-auto">
-                    Anslut dig till din orienteringsklubb för att se träningar, tävlingar och chatta med klubbkompisar.
-                </p>
-            </header>
+        <div className="min-h-screen flex flex-col bg-slate-950 text-white">
+            <PageHeader
+                title="Välj din klubb"
+                subtitle="Anslut till en klubb för att se aktiviteter och chatta"
+                showLogo
+            />
 
             {/* Search & Filter */}
             <div className="px-4 py-4 sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-b border-slate-800">
@@ -138,7 +134,6 @@ export default function JoinClubPage() {
                 </div>
             </main>
 
-            <BottomNavigation />
         </div>
     );
 }

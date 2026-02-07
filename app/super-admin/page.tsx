@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useSuperAdmin, useSetupSuperAdmin, useUserWithRoles, useRoleManagement } from '@/lib/auth/usePermissions';
 import Link from 'next/link';
 import type { Club } from '@/types/roles';
+import { forceSeedDemoEvents } from '@/lib/demo-data';
+import { isFirebaseConfigured } from '@/lib/firebase';
 
 // TEMPORARY: Development super admin password
 const DEV_SUPER_ADMIN_PASSWORD = 'orienteer2024';
@@ -19,6 +21,8 @@ export default function SuperAdminPage() {
     const [newClubName, setNewClubName] = useState('');
     const [devPassword, setDevPassword] = useState('');
     const [passwordError, setPasswordError] = useState(false);
+    const [maintenanceLoading, setMaintenanceLoading] = useState(false);
+    const [maintenanceStatus, setMaintenanceStatus] = useState<string | null>(null);
 
     useEffect(() => {
         // Load clubs from localStorage (in production, from Firestore)
@@ -154,6 +158,44 @@ export default function SuperAdminPage() {
         setShowCreateClub(false);
     };
 
+    const handleSeedDemoData = async () => {
+        setMaintenanceLoading(true);
+        setMaintenanceStatus('Seedar demodata...');
+        try {
+            await forceSeedDemoEvents();
+            setMaintenanceStatus('✅ Demodata har seedats till ' + (isFirebaseConfigured() ? 'molnet' : 'lokalt arkiv'));
+        } catch (error) {
+            setMaintenanceStatus('❌ Fel vid seeding: ' + (error as Error).message);
+        }
+        setMaintenanceLoading(false);
+    };
+
+    const handleMigrateANS = async () => {
+        setMaintenanceLoading(true);
+        setMaintenanceStatus('Migrerar ÄNS...');
+        try {
+            const res = await fetch('/api/admin/migrate-ans', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                setMaintenanceStatus('✅ Älvsjö Night Sprint har migrerats till molnet!');
+            } else {
+                setMaintenanceStatus('❌ Fel vid migrering: ' + data.error);
+            }
+        } catch (error) {
+            setMaintenanceStatus('❌ Fel vid anrop: ' + (error as Error).message);
+        }
+        setMaintenanceLoading(false);
+    };
+
+    const handleClearLocalCache = () => {
+        if (confirm('Är du säker på att du vill rensa lokal cache? Detta tar bort lokala tävlingar men påverkar inte molnet.')) {
+            localStorage.removeItem('events');
+            localStorage.removeItem('clubs');
+            setMaintenanceStatus('✅ Lokal cache har rensats. Ladda om sidan.');
+            setTimeout(() => window.location.reload(), 1500);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-slate-950 text-white">
             {/* Header */}
@@ -269,6 +311,58 @@ export default function SuperAdminPage() {
                             ))}
                         </div>
                     )}
+                </div>
+
+                {/* Maintenance Section */}
+                <div className="mt-12 bg-slate-900 rounded-3xl border border-red-500/20 shadow-2xl overflow-hidden">
+                    <div className="p-8 border-b border-slate-800 bg-red-500/5">
+                        <h2 className="text-xl font-black uppercase tracking-tight text-white flex items-center gap-3">
+                            <span className="text-red-500">⚙️</span> Systemunderhåll
+                        </h2>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-1">
+                            Verktyg för databashantering och synk
+                        </p>
+                    </div>
+
+                    <div className="p-8">
+                        {maintenanceStatus && (
+                            <div className={`mb-6 p-4 rounded-xl text-xs font-bold ${maintenanceStatus.startsWith('✅') ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                                {maintenanceStatus}
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <button
+                                onClick={handleSeedDemoData}
+                                disabled={maintenanceLoading}
+                                className="p-6 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 rounded-2xl border border-slate-700 text-left transition-all group"
+                            >
+                                <div className="text-2xl mb-2 group-hover:scale-110 transition-transform">🌱</div>
+                                <div className="text-xs font-black uppercase tracking-widest text-white mb-1">Seeda Demodata</div>
+                                <div className="text-[10px] text-slate-500 leading-relaxed font-medium">Ladda in förinställda tävlingar till {isFirebaseConfigured() ? 'molnet' : 'lokal cache'}.</div>
+                            </button>
+
+                            <button
+                                onClick={handleMigrateANS}
+                                disabled={maintenanceLoading}
+                                className="p-6 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 rounded-2xl border border-slate-700 text-left transition-all group"
+                            >
+                                <div className="text-2xl mb-2 group-hover:scale-110 transition-transform">🚀</div>
+                                <div className="text-xs font-black uppercase tracking-widest text-white mb-1">Migrera ÄNS</div>
+                                <div className="text-[10px] text-slate-500 leading-relaxed font-medium">Flytta Älvsjö Night Sprint från lokala filer till molnet.</div>
+                            </button>
+
+                            <button
+                                onClick={handleClearLocalCache}
+                                disabled={maintenanceLoading}
+                                className="p-6 bg-red-500/5 hover:bg-red-500/10 disabled:opacity-50 rounded-2xl border border-red-500/20 text-left transition-all group"
+                            >
+                                <div className="text-2xl mb-2 group-hover:scale-110 transition-transform">🗑️</div>
+                                <div className="text-xs font-black uppercase tracking-widest text-red-400 mb-1">Rensa Lokal Cache</div>
+                                <div className="text-[10px] text-red-900/60 leading-relaxed font-medium">Rensa localStorage för att tvinga fram en färsk hämtning från molnet.</div>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 

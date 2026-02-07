@@ -5,6 +5,8 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import HelpButton from '@/components/HelpButton';
 import type { Entry, EntryStatus } from '@/types/entry';
+import { getEvent, type FirestoreEvent } from '@/lib/firestore/events';
+import { subscribeToEntries, saveEntry, deleteEntry } from '@/lib/firestore/entries';
 
 interface EventClass {
     id: string;
@@ -29,35 +31,44 @@ export default function EntriesPage() {
     const [filterStatus, setFilterStatus] = useState<string>('all');
 
     useEffect(() => {
-        loadData();
+        let unsubscribe = () => { };
+
+        const init = async () => {
+            try {
+                const event = await getEvent(eventId);
+                if (event) {
+                    setEventName(event.name);
+                    setClasses(event.classes || []);
+
+                    unsubscribe = subscribeToEntries(eventId, (updatedEntries) => {
+                        setEntries(updatedEntries);
+                        setLoading(false);
+                    });
+                } else {
+                    setLoading(false);
+                }
+            } catch (err) {
+                console.error('Failed to load data:', err);
+                setLoading(false);
+            }
+        };
+
+        init();
+
+        return () => unsubscribe();
     }, [eventId]);
 
-    const loadData = () => {
-        // Load event
-        const storedEvents = localStorage.getItem('events');
-        if (storedEvents) {
-            const events = JSON.parse(storedEvents);
-            const event = events.find((e: any) => e.id === eventId);
-            if (event) {
-                setEventName(event.name);
-                setClasses(event.classes || []);
-                setEntries(event.entries || []);
-            }
+    const handleSaveEntry = async (entry: Partial<Entry>) => {
+        try {
+            await saveEntry(eventId, {
+                ...entry,
+                eventId,
+                updatedAt: new Date().toISOString()
+            } as Entry);
+        } catch (err) {
+            console.error('Failed to save entry:', err);
+            alert('Misslyckades att spara anmälan.');
         }
-        setLoading(false);
-    };
-
-    const saveEntries = (newEntries: Entry[]) => {
-        const storedEvents = localStorage.getItem('events');
-        if (storedEvents) {
-            const events = JSON.parse(storedEvents);
-            const index = events.findIndex((e: any) => e.id === eventId);
-            if (index >= 0) {
-                events[index].entries = newEntries;
-                localStorage.setItem('events', JSON.stringify(events));
-            }
-        }
-        setEntries(newEntries);
     };
 
     // Filtered entries
@@ -98,39 +109,40 @@ export default function EntriesPage() {
         late: entries.filter(e => e.entryType === 'late').length,
     }), [entries]);
 
-    const handleAddEntry = (entry: Omit<Entry, 'id' | 'createdAt' | 'updatedAt'>) => {
-        const newEntry: Entry = {
+    const handleAddEntry = async (entry: Omit<Entry, 'id' | 'createdAt' | 'updatedAt'>) => {
+        const newEntry = {
             ...entry,
             id: `entry-${Date.now()}`,
             eventId,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
         };
-        saveEntries([...entries, newEntry]);
+        await handleSaveEntry(newEntry);
         setShowAddModal(false);
     };
 
-    const handleUpdateEntry = (entry: Entry) => {
-        const updated = entries.map(e =>
-            e.id === entry.id
-                ? { ...entry, updatedAt: new Date().toISOString() }
-                : e
-        );
-        saveEntries(updated);
+    const handleUpdateEntry = async (entry: Entry) => {
+        await handleSaveEntry(entry);
         setEditingEntry(null);
     };
 
-    const handleDeleteEntry = (entryId: string) => {
+    const handleDeleteEntry = async (entryId: string) => {
         if (confirm('Ta bort denna anmälan?')) {
-            saveEntries(entries.filter(e => e.id !== entryId));
+            try {
+                await deleteEntry(eventId, entryId);
+            } catch (err) {
+                console.error('Failed to delete entry:', err);
+                alert('Misslyckades att ta bort anmälan.');
+            }
         }
     };
 
-    const handleImportCSV = (csvData: string) => {
+    const handleImportCSV = async (csvData: string) => {
         const lines = csvData.trim().split('\n');
         const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
 
-        const newEntries: Entry[] = [];
+        const newEntriesCount = lines.length - 1;
+        let imported = 0;
 
         for (let i = 1; i < lines.length; i++) {
             const values = lines[i].split(',').map(v => v.trim());
@@ -139,7 +151,6 @@ export default function EntriesPage() {
                 row[h] = values[idx] || '';
             });
 
-            // Map common column names
             const firstName = row['förnamn'] || row['firstname'] || row['first'] || '';
             const lastName = row['efternamn'] || row['lastname'] || row['last'] || row['surname'] || '';
             const club = row['klubb'] || row['club'] || row['organisation'] || '';
@@ -147,18 +158,13 @@ export default function EntriesPage() {
             const siCard = row['si'] || row['sicard'] || row['bricka'] || row['card'] || '';
 
             if (firstName && lastName) {
-                // Find or create class
                 let classId = classes.find(c => c.name.toLowerCase() === className.toLowerCase())?.id;
-                if (!classId && className) {
-                    // Add to message about missing classes
-                }
 
-                newEntries.push({
+                await handleSaveEntry({
                     id: `entry-${Date.now()}-${i}`,
                     eventId,
                     firstName,
                     lastName,
-                    clubId: undefined,
                     clubName: club,
                     classId: classId || '',
                     className: className,
@@ -168,12 +174,12 @@ export default function EntriesPage() {
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString(),
                 });
+                imported++;
             }
         }
 
-        if (newEntries.length > 0) {
-            saveEntries([...entries, ...newEntries]);
-            alert(`${newEntries.length} deltagare importerade!`);
+        if (imported > 0) {
+            alert(`${imported} deltagare importerade!`);
         }
         setShowImportModal(false);
     };

@@ -8,7 +8,6 @@ import { exportToGPX } from '@/lib/gps/tracker';
 import { useStravaAuth, uploadTrackToStrava } from '@/lib/strava/hooks';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
-import BottomNavigation from '@/components/BottomNavigation';
 
 export default function TracksPage() {
     const { user, loading: authLoading } = useRequireAuth('/login');
@@ -84,7 +83,7 @@ export default function TracksPage() {
     }
 
     return (
-        <div className="min-h-screen flex flex-col bg-slate-950 text-white pb-24">
+        <div className="min-h-screen flex flex-col bg-slate-950 text-white">
             <PageHeader
                 title="Mina GPS-Spår"
                 showLogo
@@ -119,8 +118,8 @@ export default function TracksPage() {
                         key={f}
                         onClick={() => setFilter(f)}
                         className={`px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${filter === f
-                                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30'
-                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
+                            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30'
+                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
                             }`}
                     >
                         {f === 'all' ? 'Alla' : f === 'synced' ? 'Synkade' : 'Ej synkade'}
@@ -158,7 +157,6 @@ export default function TracksPage() {
                 )}
             </main>
 
-            <BottomNavigation />
         </div>
     );
 }

@@ -4,7 +4,7 @@ import path from 'path';
 
 export async function GET() {
     try {
-        const filePath = path.join(process.cwd(), 'testtävling', 'äns', 'resultat äns ver2.xml');
+        const filePath = path.join(process.cwd(), 'data', 'ans', 'results.xml');
         const content = await readFile(filePath, 'utf-8');
 
         return new NextResponse(content, {

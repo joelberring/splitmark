@@ -15,8 +15,11 @@ import {
     SpeakerTab,
     SafetyTab,
     EventData,
-    saveEvent,
+    saveEvent as localSaveEvent,
 } from './components';
+import { getEvent, saveEvent, type FirestoreEvent } from '@/lib/firestore/events';
+import { subscribeToEntries } from '@/lib/firestore/entries';
+import type { Entry } from '@/types/entry';
 
 type TabId = 'overview' | 'classes' | 'entries' | 'lottning' | 'timing' | 'safety' | 'map' | 'participants' | 'speaker';
 
@@ -37,42 +40,57 @@ export default function EventManagePage() {
     const eventId = params.id as string;
 
     const [event, setEvent] = useState<EventData | null>(null);
+    const [entries, setEntries] = useState<Entry[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<TabId>('overview');
     const [showEditModal, setShowEditModal] = useState(false);
     const [editForm, setEditForm] = useState({ name: '', date: '', time: '', location: '' });
 
     useEffect(() => {
-        const stored = localStorage.getItem('events');
-        if (stored) {
-            const events = JSON.parse(stored);
-            const found = events.find((e: EventData) => e.id === eventId);
-            if (found) {
-                setEvent({
-                    ...found,
-                    classes: found.classes || [],
-                    entries: found.entries || [],
-                });
-                setEditForm({
-                    name: found.name || '',
-                    date: found.date || '',
-                    time: found.time || '',
-                    location: found.location || '',
-                });
+        let unsubscribeEntries = () => { };
+
+        const load = async () => {
+            try {
+                const found = await getEvent(eventId);
+                if (found) {
+                    setEvent({
+                        ...found,
+                        classes: found.classes || [],
+                        entries: [], // Will be filled by subscription
+                    } as any);
+                    setEditForm({
+                        name: found.name || '',
+                        date: found.date || '',
+                        time: found.time || '',
+                        location: found.location || '',
+                    });
+
+                    unsubscribeEntries = subscribeToEntries(eventId, (updatedEntries) => {
+                        setEntries(updatedEntries);
+                        setLoading(false);
+                    });
+                } else {
+                    setLoading(false);
+                }
+            } catch (err) {
+                console.error('Failed to load admin hub data:', err);
+                setLoading(false);
             }
-        }
-        setLoading(false);
+        };
+        load();
+
+        return () => unsubscribeEntries();
     }, [eventId]);
 
-    const handleToggleStatus = () => {
+    const handleToggleStatus = async () => {
         if (!event) return;
-        const newStatus = event.status === 'active' ? 'draft' : 'active';
+        const newStatus = event.status === 'active' ? 'draft' : 'active' as any;
         const updatedEvent = { ...event, status: newStatus };
         setEvent(updatedEvent);
-        saveEvent(updatedEvent);
+        await saveEvent(updatedEvent);
     };
 
-    const handleSaveEdit = () => {
+    const handleSaveEdit = async () => {
         if (!event) return;
         const updatedEvent = {
             ...event,
@@ -82,7 +100,7 @@ export default function EventManagePage() {
             location: editForm.location,
         };
         setEvent(updatedEvent);
-        saveEvent(updatedEvent);
+        await saveEvent(updatedEvent);
         setShowEditModal(false);
     };
 
@@ -175,15 +193,15 @@ export default function EventManagePage() {
 
             {/* Content */}
             <div className="max-w-7xl mx-auto px-4 py-8">
-                {activeTab === 'overview' && <OverviewTab event={event} />}
-                {activeTab === 'classes' && <ClassesTab event={event} setEvent={setEvent} />}
-                {activeTab === 'entries' && <EntriesTab event={event} setEvent={setEvent} />}
-                {activeTab === 'lottning' && <LottningTab event={event} setEvent={setEvent} />}
-                {activeTab === 'timing' && <TimingTab event={event} setEvent={setEvent} />}
-                {activeTab === 'safety' && <SafetyTab event={event} setEvent={setEvent} />}
-                {activeTab === 'map' && <MapTab event={event} eventId={eventId} setEvent={setEvent} />}
-                {activeTab === 'speaker' && <SpeakerTab event={event} />}
-                {activeTab === 'participants' && <ParticipantsTab event={event} setEvent={setEvent} />}
+                {activeTab === 'overview' && <OverviewTab event={{ ...event, entries } as any} />}
+                {activeTab === 'classes' && <ClassesTab event={{ ...event, entries } as any} setEvent={setEvent} />}
+                {activeTab === 'entries' && <EntriesTab event={{ ...event, entries } as any} setEvent={setEvent} />}
+                {activeTab === 'lottning' && <LottningTab event={{ ...event, entries } as any} setEvent={setEvent} />}
+                {activeTab === 'timing' && <TimingTab event={{ ...event, entries } as any} setEvent={setEvent} />}
+                {activeTab === 'safety' && <SafetyTab event={{ ...event, entries } as any} setEvent={setEvent} />}
+                {activeTab === 'map' && <MapTab event={{ ...event, entries } as any} eventId={eventId} setEvent={setEvent} />}
+                {activeTab === 'speaker' && <SpeakerTab event={{ ...event, entries } as any} />}
+                {activeTab === 'participants' && <ParticipantsTab event={{ ...event, entries } as any} setEvent={setEvent} />}
             </div>
 
             {/* Edit Event Modal */}

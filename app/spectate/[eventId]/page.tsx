@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import PageHeader from '@/components/PageHeader';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -258,30 +259,26 @@ export default function SpectateEventPage() {
 
     return (
         <div className="h-screen flex flex-col bg-slate-950 text-white">
-            {/* Header */}
-            <header className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-900 z-10">
-                <div className="flex items-center gap-3">
-                    <Link href="/spectate" className="text-slate-500 hover:text-white transition-colors">
-                        ←
-                    </Link>
-                    <div>
-                        <h1 className="text-sm font-bold uppercase tracking-wider">{eventName}</h1>
-                        <p className="text-xs text-slate-500">{organizer}</p>
+            <PageHeader
+                title={eventName}
+                subtitle={organizer}
+                backHref="/spectate"
+                showLogo
+                rightAction={
+                    <div className="flex items-center gap-2">
+                        {eventStatus === 'completed' ? (
+                            <div className="flex items-center gap-2 bg-emerald-900/30 px-3 py-1 rounded border border-emerald-800/50">
+                                <span className="text-emerald-400 text-[10px] font-black uppercase tracking-widest">🏆 Avslutat</span>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2 bg-red-900/30 px-3 py-1 rounded border border-red-800/50">
+                                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                                <span className="text-red-400 text-[10px] font-black uppercase tracking-widest">Live</span>
+                            </div>
+                        )}
                     </div>
-                </div>
-                <div className="flex items-center gap-2">
-                    {eventStatus === 'completed' ? (
-                        <div className="flex items-center gap-2 bg-emerald-900/30 px-3 py-1 rounded border border-emerald-800/50">
-                            <span className="text-emerald-400 text-xs font-bold uppercase tracking-wider">🏆 Avslutat</span>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2 bg-red-900/30 px-3 py-1 rounded border border-red-800/50">
-                            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                            <span className="text-red-400 text-xs font-bold uppercase tracking-wider">Live</span>
-                        </div>
-                    )}
-                </div>
-            </header>
+                }
+            />
 
             {/* Class filter */}
             <div className="flex items-center gap-2 px-4 py-2 bg-slate-900/80 border-b border-slate-800 overflow-x-auto">

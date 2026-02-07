@@ -9,11 +9,13 @@ export interface EventData {
     location?: string;
     type: string;
     classification: string;
-    status: string;
+    status: 'draft' | 'active' | 'completed';
     classes: EventClass[];
     entries: Entry[];
     courses?: any[];
     ppenControls?: any[];
+    ppenCourses?: any[];
+    map?: { imageUrl: string; name?: string };
 }
 
 export interface EventClass {
@@ -29,14 +31,17 @@ export interface Entry {
     id: string;
     name: string;
     club: string;
-    classId?: string;
+    classId: string;
     className?: string;
     siCard?: string;
     startTime?: string;
     finishTime?: string;
     resultTime?: string;
-    status: 'registered' | 'started' | 'finished' | 'dns' | 'dnf' | 'mp';
+    status: 'registered' | 'confirmed' | 'started' | 'finished' | 'dns' | 'dnf' | 'dsq' | 'cancelled';
+    resultStatus?: 'ok' | 'mp' | 'dnf' | 'dsq' | 'dns' | 'ot';
     punches?: { code: string; time: string }[];
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export function saveEvent(event: EventData) {

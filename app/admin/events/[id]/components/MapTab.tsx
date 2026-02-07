@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import GCPCalibrationTool from '@/components/GCPCalibrationTool';
 import type { GCP, AffineMatrix } from '@/lib/geo/affine';
 import { EventData, parsePurplePenData } from './shared';
+import { getEvent, saveEvent } from '@/lib/firestore/events';
 
 interface MapTabProps {
     event: EventData;
@@ -21,16 +22,15 @@ export default function MapTab({ event, eventId, setEvent }: MapTabProps) {
     const [fullEvent, setFullEvent] = useState<any>(null);
 
     useEffect(() => {
-        const stored = localStorage.getItem('events');
-        if (stored) {
-            const events = JSON.parse(stored);
-            const found = events.find((e: any) => e.id === eventId);
+        const load = async () => {
+            const found = await getEvent(eventId);
             if (found) {
                 setFullEvent(found);
-                if (found.ppenControls?.length > 0) setPpenControls(found.ppenControls);
-                if (found.ppenCourses?.length > 0) setPpenCourses(found.ppenCourses);
+                if (found.ppenControls && found.ppenControls.length > 0) setPpenControls(found.ppenControls);
+                if (found.ppenCourses && found.ppenCourses.length > 0) setPpenCourses(found.ppenCourses);
             }
-        }
+        };
+        load();
     }, [eventId]);
 
     useEffect(() => {
@@ -70,35 +70,25 @@ export default function MapTab({ event, eventId, setEvent }: MapTabProps) {
         return { x: (ctrl.relX ?? 0.5) * 100, y: (ctrl.relY ?? 0.5) * 100 };
     };
 
-    const handleSaveCalibration = (gcps: GCP[], transform: AffineMatrix) => {
-        const stored = localStorage.getItem('events');
-        if (stored) {
-            const events = JSON.parse(stored);
-            const eventIndex = events.findIndex((e: any) => e.id === eventId);
-            if (eventIndex >= 0) {
-                events[eventIndex].calibrationGCPs = gcps;
-                events[eventIndex].calibration = transform;
-                if (ppenControls.length > 0) events[eventIndex].ppenControls = ppenControls;
-                if (ppenCourses.length > 0) events[eventIndex].ppenCourses = ppenCourses;
-                localStorage.setItem('events', JSON.stringify(events));
-                setFullEvent({ ...events[eventIndex] });
-            }
-        }
+    const handleSaveCalibration = async (gcps: GCP[], transform: AffineMatrix) => {
+        if (!fullEvent) return;
+        const updatedEvent = {
+            ...fullEvent,
+            calibrationGCPs: gcps,
+            calibration: transform,
+            ppenControls: ppenControls.length > 0 ? ppenControls : fullEvent.ppenControls,
+            ppenCourses: ppenCourses.length > 0 ? ppenCourses : fullEvent.ppenCourses,
+        };
+        await saveEvent(updatedEvent);
+        setFullEvent(updatedEvent);
         setShowCalibration(false);
     };
 
-    const clearCalibration = () => {
-        const stored = localStorage.getItem('events');
-        if (stored) {
-            const events = JSON.parse(stored);
-            const eventIndex = events.findIndex((e: any) => e.id === eventId);
-            if (eventIndex >= 0) {
-                delete events[eventIndex].calibration;
-                delete events[eventIndex].calibrationGCPs;
-                localStorage.setItem('events', JSON.stringify(events));
-                setFullEvent(events[eventIndex]);
-            }
-        }
+    const clearCalibration = async () => {
+        if (!fullEvent) return;
+        const { calibration, calibrationGCPs, ...rest } = fullEvent;
+        await saveEvent(rest);
+        setFullEvent(rest);
     };
 
     const handlePurplePenFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,15 +117,13 @@ export default function MapTab({ event, eventId, setEvent }: MapTabProps) {
             const res = await fetch('/api/upload-map', { method: 'POST', body: formData });
             const data = await res.json();
             if (data.success) {
-                const stored = localStorage.getItem('events');
-                if (stored) {
-                    const events = JSON.parse(stored);
-                    const eventIndex = events.findIndex((ev: any) => ev.id === eventId);
-                    if (eventIndex >= 0) {
-                        events[eventIndex].map = { imageUrl: data.url, name: file.name };
-                        localStorage.setItem('events', JSON.stringify(events));
-                        setFullEvent({ ...events[eventIndex] });
-                    }
+                if (fullEvent) {
+                    const updatedEvent = {
+                        ...fullEvent,
+                        map: { imageUrl: data.url, name: file.name }
+                    };
+                    await saveEvent(updatedEvent);
+                    setFullEvent(updatedEvent);
                 }
             } else {
                 alert('Uppladdning misslyckades: ' + data.message);

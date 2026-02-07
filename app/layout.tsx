@@ -3,6 +3,7 @@ import { Outfit } from "next/font/google"; // Import Outfit
 import "./globals.css";
 import PWAProvider from '@/components/PWAProvider';
 import AppHeader from '@/components/AppHeader';
+import BottomNavigation from '@/components/BottomNavigation';
 
 const outfit = Outfit({ subsets: ["latin"] }); // Configure font
 
@@ -40,9 +41,10 @@ export default function RootLayout({
       >
         <PWAProvider>
           <AppHeader />
-          <main className="pb-20 md:pb-0 pt-16 md:pt-20">
+          <main className="pb-20 md:pb-8 pt-16 md:pt-24">
             {children}
           </main>
+          <BottomNavigation />
         </PWAProvider>
       </body>
     </html>

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import WinSplitsGrid from '@/components/Events/WinSplitsGrid';
+import MapOverlay from '@/components/Events/MapOverlay';
 
 export default function ResultsPage() {
     const params = useParams();
@@ -12,19 +13,23 @@ export default function ResultsPage() {
 
     const [event, setEvent] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [viewMode, setViewMode] = useState<'details' | 'overview'>('overview');
+    const [viewMode, setViewMode] = useState<'details' | 'overview' | 'map'>('overview');
     const [selectedRunner, setSelectedRunner] = useState<string | null>(null);
 
     useEffect(() => {
-        const storedEvents = localStorage.getItem('events');
-        if (storedEvents) {
-            const events = JSON.parse(storedEvents);
-            const foundEvent = events.find((e: any) => e.id === eventId);
-            if (foundEvent) {
-                setEvent(foundEvent);
+        const loadEvent = async () => {
+            try {
+                const { getEvent } = await import('@/lib/firestore/events');
+                const foundEvent = await getEvent(eventId);
+                if (foundEvent) {
+                    setEvent(foundEvent);
+                }
+            } catch (error) {
+                console.error('Error loading event:', error);
             }
-        }
-        setLoading(false);
+            setLoading(false);
+        };
+        loadEvent();
     }, [eventId]);
 
     const results = useMemo(() => {
@@ -102,24 +107,45 @@ export default function ResultsPage() {
                                 className={`px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'overview' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
                                     }`}
                             >
-                                WinSplits Översikt
+                                WinSplits
                             </button>
                             <button
                                 onClick={() => setViewMode('details')}
                                 className={`px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'details' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
                                     }`}
                             >
-                                Detaljerad Analys
+                                Analys
                             </button>
+                            {event?.worldFile && (
+                                <button
+                                    onClick={() => setViewMode('map')}
+                                    className={`px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'map' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
+                                        }`}
+                                >
+                                    Karta
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
             </header>
 
             <div className="max-w-7xl mx-auto px-4 py-6">
-                {viewMode === 'overview' ? (
-                    <WinSplitsGrid entries={results as any} />
-                ) : (
+                {viewMode === 'overview' && <WinSplitsGrid entries={results as any} />}
+
+                {viewMode === 'map' && event?.worldFile && (
+                    <div className="h-[70vh]">
+                        <MapOverlay
+                            worldFileContent={event.worldFile}
+                            mapImageUrl={event.mapImageUrl || '/test-map.jpg'}
+                            course={event.courses?.find((c: any) => c.classIds?.includes(classId))}
+                            results={results as any}
+                            selectedRunnerId={selectedRunner || undefined}
+                        />
+                    </div>
+                )}
+
+                {viewMode === 'details' && (
                     <div className="grid lg:grid-cols-3 gap-6">
                         {/* Results List */}
                         <div className="lg:col-span-1">
@@ -237,8 +263,8 @@ export default function ResultsPage() {
                                                                 </td>
                                                                 <td className="px-4 py-2 whitespace-nowrap text-right">
                                                                     <span className={`w-6 h-6 inline-flex items-center justify-center rounded text-[9px] font-black ${split.position === 1 ? 'bg-emerald-500 text-slate-950' :
-                                                                            split.position <= 3 ? 'bg-slate-700 text-slate-300' :
-                                                                                'bg-slate-800 text-slate-600'
+                                                                        split.position <= 3 ? 'bg-slate-700 text-slate-300' :
+                                                                            'bg-slate-800 text-slate-600'
                                                                         }`}>
                                                                         {split.position || '-'}
                                                                     </span>

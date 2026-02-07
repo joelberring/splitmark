@@ -22,11 +22,11 @@ interface Class {
 
 interface Props {
     event: any;
+    entries: any[];
 }
 
-export default function EntriesTab({ event }: Props) {
+export default function EntriesTab({ event, entries }: Props) {
     const [selectedClassId, setSelectedClassId] = useState<string>('all');
-    const entries = event.entries || [];
     const classes = event.classes || [];
 
     if (entries.length === 0) {

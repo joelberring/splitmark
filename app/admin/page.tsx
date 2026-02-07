@@ -2,6 +2,7 @@
 
 import { useRequireAuth } from '@/lib/auth/hooks';
 import Link from 'next/link';
+import PageHeader from '@/components/PageHeader';
 import { useState, useEffect } from 'react';
 import HelpButton from '@/components/HelpButton';
 
@@ -34,21 +35,17 @@ export default function AdminPage() {
 
     return (
         <div className="min-h-screen bg-slate-950 text-white">
-            {/* Header */}
-            <header className="bg-slate-900 border-b border-slate-800">
-                <div className="max-w-7xl mx-auto px-4 py-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <Link href="/" className="text-xs text-slate-500 hover:text-emerald-400 mb-2 inline-block font-bold uppercase tracking-widest">← Tillbaka</Link>
-                            <h1 className="text-2xl font-bold uppercase tracking-tight">Administration</h1>
-                            <p className="text-slate-500 text-sm mt-1">Hantera tävlingar, tidtagning och resultat</p>
-                        </div>
-                        <div className="px-4 py-2 bg-purple-900/30 text-purple-400 rounded-lg font-bold text-xs uppercase tracking-widest border border-purple-800/50">
-                            {user.role === 'admin' ? 'Administratör' : 'Arrangör'}
-                        </div>
+            <PageHeader
+                title="Administration"
+                subtitle="Hantera tävlingar, tidtagning och resultat"
+                showLogo
+                backHref="/"
+                rightAction={
+                    <div className="px-4 py-2 bg-purple-900/30 text-purple-400 rounded-lg font-bold text-[10px] uppercase tracking-widest border border-purple-800/50">
+                        {user.role === 'admin' ? 'Administratör' : 'Arrangör'}
                     </div>
-                </div>
-            </header>
+                }
+            />
 
             {/* Navigation Tabs */}
             <div className="bg-slate-900 border-b border-slate-800">
@@ -92,7 +89,10 @@ function EventsTab() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold uppercase tracking-wide flex items-center gap-2">Mina Tävlingar<HelpButton topic="create-event" size="sm" /></h2>
-                <Link href="/admin/events/new" className="px-6 py-3 bg-emerald-600 text-white rounded-lg font-bold uppercase tracking-widest hover:bg-emerald-500 transition-colors">+ Ny Tävling</Link>
+                <div className="flex gap-3">
+                    <Link href="/admin/import" className="px-6 py-3 bg-slate-800 text-white rounded-lg font-bold uppercase tracking-widest hover:bg-slate-700 transition-colors">Hämta från Eventor</Link>
+                    <Link href="/admin/events/new" className="px-6 py-3 bg-emerald-600 text-white rounded-lg font-bold uppercase tracking-widest hover:bg-emerald-500 transition-colors">+ Ny Tävling</Link>
+                </div>
             </div>
 
             {events.length === 0 ? (

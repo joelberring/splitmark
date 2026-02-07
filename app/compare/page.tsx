@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
-import BottomNavigation from '@/components/BottomNavigation';
 
 interface Runner {
     id: string;
@@ -41,7 +40,7 @@ export default function CompareResultsPage() {
     const cumulative2 = r2.splits.reduce((acc: number[], time, i) => { acc.push((acc[i - 1] || 0) + time); return acc; }, []);
 
     return (
-        <div className="min-h-screen flex flex-col bg-slate-950 text-white pb-24">
+        <div className="min-h-screen flex flex-col bg-slate-950 text-white">
             <PageHeader title="Jämför Sträcktider" backHref="/events" backLabel="Tillbaka" />
 
             <main className="flex-1 px-4 py-6 max-w-4xl mx-auto w-full">
@@ -163,7 +162,6 @@ export default function CompareResultsPage() {
                 </div>
             </main>
 
-            <BottomNavigation />
         </div>
     );
 }

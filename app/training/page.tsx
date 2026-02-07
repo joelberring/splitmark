@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRequireAuth } from '@/lib/auth/hooks';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
-import BottomNavigation from '@/components/BottomNavigation';
 
 interface TrainingEntry {
     id: string;
@@ -66,7 +65,7 @@ export default function TrainingLogPage() {
     }
 
     return (
-        <div className="min-h-screen flex flex-col bg-slate-950 text-white pb-24">
+        <div className="min-h-screen flex flex-col bg-slate-950 text-white">
             <PageHeader
                 title="Träningsdagbok"
                 showLogo
@@ -116,8 +115,8 @@ export default function TrainingLogPage() {
                             <div className="flex items-start justify-between">
                                 <div className="flex items-start gap-3">
                                     <div className={`p-2 rounded-lg ${entry.type === 'competition' ? 'bg-amber-900/30 text-amber-400' :
-                                            entry.type === 'rest' ? 'bg-slate-700 text-slate-400' :
-                                                'bg-emerald-900/30 text-emerald-400'
+                                        entry.type === 'rest' ? 'bg-slate-700 text-slate-400' :
+                                            'bg-emerald-900/30 text-emerald-400'
                                         }`}>
                                         <span className="text-xl">
                                             {entry.type === 'competition' ? '🏆' : entry.type === 'rest' ? '😴' : '🏃'}
@@ -273,7 +272,6 @@ export default function TrainingLogPage() {
                 </div>
             )}
 
-            <BottomNavigation />
         </div>
     );
 }

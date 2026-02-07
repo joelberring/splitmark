@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import WinSplitsGrid from './WinSplitsGrid';
 
 // Helper for formatting time
 const formatTime = (seconds: number) => {
@@ -13,15 +14,16 @@ const formatTime = (seconds: number) => {
 
 interface Props {
     event: any;
+    results: any[];
 }
 
-export default function ResultsTab({ event }: Props) {
+export default function ResultsTab({ event, results }: Props) {
     const [selectedEntry, setSelectedEntry] = useState<any | null>(null);
     const [selectedClassId, setSelectedClassId] = useState<string>('all');
-    const entries = event.entries || [];
+    const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
     const classes = event.classes || [];
 
-    if (entries.length === 0) {
+    if (results.length === 0) {
         return (
             <div className="bg-slate-900 border border-slate-800 rounded-lg p-12 text-center shadow-sm">
                 <div className="text-6xl mb-6 opacity-20 grayscale">🏆</div>
@@ -36,13 +38,13 @@ export default function ResultsTab({ event }: Props) {
         : classes.filter((c: any) => c.id === selectedClassId);
 
     // Sort entries: OK results by position, then non-OK results at the end
-    const sortEntries = (entries: any[]) => {
-        const okResults = entries
-            .filter((e: any) => e.status === 'OK' || e.status === 'finished')
+    const sortEntries = (entriesToVisit: any[]) => {
+        const okResults = entriesToVisit
+            .filter((e: any) => e.status?.toLowerCase() === 'ok' || e.status === 'finished')
             .sort((a: any, b: any) => (a.position || 999) - (b.position || 999));
 
-        const nonOkResults = entries
-            .filter((e: any) => e.status !== 'OK' && e.status !== 'finished')
+        const nonOkResults = entriesToVisit
+            .filter((e: any) => e.status?.toLowerCase() !== 'ok' && e.status !== 'finished')
             .sort((a: any, b: any) => {
                 // Sort by status priority: MP > DNF > DNS > DSQ
                 const statusOrder: Record<string, number> = { 'MP': 1, 'DNF': 2, 'DNS': 3, 'DSQ': 4 };
@@ -54,9 +56,9 @@ export default function ResultsTab({ event }: Props) {
 
     // Group entries by class
     const entriesByClass = filteredClasses.map((cls: any) => {
-        const classEntries = entries.filter((e: any) => e.classId === cls.id);
+        const classEntries = results.filter((e: any) => e.classId === cls.id);
         const sortedEntries = sortEntries(classEntries);
-        const winnerTime = sortedEntries.find((e: any) => e.status === 'OK' || e.status === 'finished')?.time || 0;
+        const winnerTime = sortedEntries.find((e: any) => e.status?.toLowerCase() === 'ok' || e.status === 'finished')?.time || 0;
 
         return {
             class: cls,
@@ -68,18 +70,37 @@ export default function ResultsTab({ event }: Props) {
     return (
         <div className="space-y-8">
             {/* Class Filter */}
-            <div className="flex items-center gap-4 p-4 bg-slate-900 border border-slate-800 rounded-lg shadow-sm">
-                <label className="text-sm font-bold text-slate-400 uppercase tracking-widest">Klass:</label>
-                <select
-                    value={selectedClassId}
-                    onChange={(e) => setSelectedClassId(e.target.value)}
-                    className="px-4 py-2 rounded bg-slate-800 text-white border border-slate-700 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all uppercase tracking-wide text-sm font-bold"
-                >
-                    <option value="all">Alla klasser</option>
-                    {classes.map((cls: any) => (
-                        <option key={cls.id} value={cls.id}>{cls.name}</option>
-                    ))}
-                </select>
+            <div className="flex items-center justify-between p-4 bg-slate-900 border border-slate-800 rounded-lg shadow-sm">
+                <div className="flex items-center gap-4">
+                    <label className="text-sm font-bold text-slate-400 uppercase tracking-widest">Klass:</label>
+                    <select
+                        value={selectedClassId}
+                        onChange={(e) => setSelectedClassId(e.target.value)}
+                        className="px-4 py-2 rounded bg-slate-800 text-white border border-slate-700 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all uppercase tracking-wide text-sm font-bold"
+                    >
+                        <option value="all">Alla klasser</option>
+                        {classes.map((cls: any) => (
+                            <option key={cls.id} value={cls.id}>{cls.name}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="flex bg-slate-800 p-1 rounded-lg border border-slate-700">
+                    <button
+                        onClick={() => setViewMode('list')}
+                        className={`px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'list' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
+                            }`}
+                    >
+                        Lista
+                    </button>
+                    <button
+                        onClick={() => setViewMode('grid')}
+                        className={`px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'grid' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
+                            }`}
+                    >
+                        WinSplits
+                    </button>
+                </div>
             </div>
 
             {/* Results by Class */}
@@ -104,73 +125,79 @@ export default function ResultsTab({ event }: Props) {
                             </span>
                         )}
                     </div>
-                    <div className="divide-y divide-slate-800/50">
-                        {group.entries.map((entry: any, idx: number) => {
-                            const isWinner = idx === 0 && (entry.status === 'OK' || entry.status === 'finished');
-                            return (
-                                <button
-                                    key={entry.id}
-                                    onClick={() => setSelectedEntry(entry)}
-                                    className="w-full px-4 py-2 flex items-center gap-3 hover:bg-slate-800/50 transition-colors text-left group"
-                                >
-                                    {/* Position Badge */}
-                                    <div className={`w-7 h-7 rounded flex items-center justify-center font-bold text-xs shadow-sm transition-transform group-hover:scale-110 ${idx === 0 ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20' :
-                                        idx === 1 ? 'bg-slate-300 text-slate-900' :
-                                            idx === 2 ? 'bg-amber-600 text-white' :
-                                                'bg-slate-800 text-slate-500'
-                                        }`}>
-                                        {entry.position || idx + 1}
-                                    </div>
+                    {viewMode === 'list' ? (
+                        <div className="divide-y divide-slate-800/50">
+                            {group.entries.map((entry: any, idx: number) => {
+                                const isWinner = idx === 0 && (entry.status?.toLowerCase() === 'ok' || entry.status === 'finished');
+                                return (
+                                    <button
+                                        key={entry.id}
+                                        onClick={() => setSelectedEntry(entry)}
+                                        className="w-full px-4 py-2 flex items-center gap-3 hover:bg-slate-800/50 transition-colors text-left group"
+                                    >
+                                        {/* Position Badge */}
+                                        <div className={`w-7 h-7 rounded flex items-center justify-center font-bold text-xs shadow-sm transition-transform group-hover:scale-110 ${idx === 0 ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20' :
+                                            idx === 1 ? 'bg-slate-300 text-slate-900' :
+                                                idx === 2 ? 'bg-amber-600 text-white' :
+                                                    'bg-slate-800 text-slate-500'
+                                            }`}>
+                                            {entry.position || idx + 1}
+                                        </div>
 
-                                    {/* Name & Club */}
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2">
-                                            <span className={`font-bold text-sm transition-colors ${isWinner ? 'text-emerald-400' : 'text-slate-200 group-hover:text-emerald-400'}`}>
-                                                {entry.name || `${entry.firstName} ${entry.lastName}`}
-                                            </span>
-                                            {/* Fork key badge */}
-                                            {entry.forkKey && (
-                                                <span className="px-1.5 py-0.5 bg-purple-900/40 text-purple-300 text-[10px] rounded border border-purple-800/50">
-                                                    {entry.forkKey}
+                                        {/* Name & Club */}
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`font-bold text-sm transition-colors ${isWinner ? 'text-emerald-400' : 'text-slate-200 group-hover:text-emerald-400'}`}>
+                                                    {entry.name || `${entry.firstName} ${entry.lastName}`}
                                                 </span>
+                                                {/* Fork key badge */}
+                                                {entry.forkKey && (
+                                                    <span className="px-1.5 py-0.5 bg-purple-900/40 text-purple-300 text-[10px] rounded border border-purple-800/50">
+                                                        {entry.forkKey}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider leading-none">{entry.clubName || entry.club}</div>
+                                        </div>
+
+                                        {/* Time */}
+                                        <div className="text-right min-w-[80px]">
+                                            {entry.status?.toLowerCase() === 'ok' || entry.status === 'finished' ? (
+                                                <>
+                                                    {/* Time behind winner for non-winners - show first */}
+                                                    {idx > 0 && group.winnerTime && entry.time > group.winnerTime && (
+                                                        <div className="text-[10px] text-slate-500 font-mono mb-0.5">
+                                                            +{formatTime(entry.time - group.winnerTime)}
+                                                        </div>
+                                                    )}
+                                                    <div className={`font-mono font-bold tracking-tight ${isWinner ? 'text-emerald-500 text-lg' : 'text-slate-200 group-hover:text-white'}`}>
+                                                        {formatTime(entry.time)}
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                /* Non-OK status display */
+                                                <div className="text-red-500 font-bold font-mono text-sm tracking-wider">
+                                                    {entry.status === 'MP' && 'MP'}
+                                                    {entry.status === 'DNF' && 'DNF'}
+                                                    {entry.status === 'DNS' && 'DNS'}
+                                                    {entry.status === 'DSQ' && 'DSQ'}
+                                                    {!['MP', 'DNF', 'DNS', 'DSQ'].includes(entry.status) && entry.status}
+                                                </div>
                                             )}
                                         </div>
-                                        <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider leading-none">{entry.clubName || entry.club}</div>
-                                    </div>
 
-                                    {/* Time */}
-                                    <div className="text-right min-w-[80px]">
-                                        {entry.status === 'OK' || entry.status === 'finished' ? (
-                                            <>
-                                                {/* Time behind winner for non-winners - show first */}
-                                                {idx > 0 && group.winnerTime && entry.time > group.winnerTime && (
-                                                    <div className="text-[10px] text-slate-500 font-mono mb-0.5">
-                                                        +{formatTime(entry.time - group.winnerTime)}
-                                                    </div>
-                                                )}
-                                                <div className={`font-mono font-bold tracking-tight ${isWinner ? 'text-emerald-500 text-lg' : 'text-slate-200 group-hover:text-white'}`}>
-                                                    {formatTime(entry.time)}
-                                                </div>
-                                            </>
-                                        ) : (
-                                            /* Non-OK status display */
-                                            <div className="text-red-500 font-bold font-mono text-sm tracking-wider">
-                                                {entry.status === 'MP' && 'MP'}
-                                                {entry.status === 'DNF' && 'DNF'}
-                                                {entry.status === 'DNS' && 'DNS'}
-                                                {entry.status === 'DSQ' && 'DSQ'}
-                                                {!['MP', 'DNF', 'DNS', 'DSQ'].includes(entry.status) && entry.status}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        👉
-                                    </div>
-                                </button>
-                            );
-                        })}
-                    </div>
+                                        <div className="text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            👉
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="p-1">
+                            <WinSplitsGrid entries={group.entries} />
+                        </div>
+                    )}
                 </div>
             ))}
 

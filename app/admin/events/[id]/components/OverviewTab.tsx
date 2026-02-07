@@ -16,7 +16,9 @@ export default function OverviewTab({ event }: { event: EventData }) {
                 <div className="text-slate-500 text-xs uppercase tracking-widest font-bold mt-1">Anmälda</div>
             </div>
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-                <div className="text-4xl font-bold text-purple-400">0</div>
+                <div className="text-4xl font-bold text-purple-400">
+                    {event.entries.filter(e => e.status === 'finished' || e.resultStatus === 'ok').length}
+                </div>
                 <div className="text-slate-500 text-xs uppercase tracking-widest font-bold mt-1">I mål</div>
             </div>
 

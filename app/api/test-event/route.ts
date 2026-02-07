@@ -5,11 +5,11 @@ import { join } from 'path';
 // Load the test competition data from testtävling/äns
 export async function GET() {
     try {
-        const testDir = join(process.cwd(), 'testtävling', 'äns');
+        const testDir = join(process.cwd(), 'data', 'ans');
 
         // Check if directory exists
         if (!existsSync(testDir)) {
-            return NextResponse.json({ error: 'Testtävling directory not found' }, { status: 404 });
+            return NextResponse.json({ error: 'Test data directory not found' }, { status: 404 });
         }
 
         // Load files
@@ -21,19 +21,19 @@ export async function GET() {
         };
 
         // Result XML
-        const resultatPath = join(testDir, 'resultat äns ver2.xml');
+        const resultatPath = join(testDir, 'results.xml');
         if (existsSync(resultatPath)) {
             files.resultat = readFileSync(resultatPath, 'utf-8');
         }
 
         // Course data (IOF XML from Purple Pen)
-        const coursePath = join(testDir, 'ÄNS 20251202.xml');
+        const coursePath = join(testDir, 'courses.xml');
         if (existsSync(coursePath)) {
             files.courseData = readFileSync(coursePath, 'utf-8');
         }
 
         // World file
-        const worldPath = join(testDir, 'karta_hela.pgw');
+        const worldPath = join(testDir, 'worldfile.pgw');
         if (existsSync(worldPath)) {
             files.worldFile = readFileSync(worldPath, 'utf-8');
         }

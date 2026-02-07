@@ -23,27 +23,37 @@ export default function PublicResultsPage() {
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
     useEffect(() => {
-        loadData();
-        // Auto-refresh every 30 seconds
-        const interval = setInterval(loadData, 30000);
-        return () => clearInterval(interval);
-    }, [eventId]);
+        let unsubscribeResults = () => { };
 
-    const loadData = () => {
-        const storedEvents = localStorage.getItem('events');
-        if (storedEvents) {
-            const events = JSON.parse(storedEvents);
-            const event = events.find((e: any) => e.id === eventId);
-            if (event) {
-                setEventName(event.name);
-                setEventDate(event.date);
-                setClasses(event.classes || []);
-                setEntries(event.entries || []);
-                setLastUpdated(new Date());
+        const init = async () => {
+            try {
+                const { getEvent } = await import('@/lib/firestore/events');
+                const { subscribeToResults } = await import('@/lib/firestore/results');
+
+                const event = await getEvent(eventId);
+                if (event) {
+                    setEventName(event.name);
+                    setEventDate(event.date);
+                    setClasses(event.classes || []);
+
+                    unsubscribeResults = subscribeToResults(eventId, (updatedResults) => {
+                        setEntries(updatedResults as any);
+                        setLastUpdated(new Date());
+                        setLoading(false);
+                    });
+                } else {
+                    setLoading(false);
+                }
+            } catch (error) {
+                console.error('Error initializing results listener:', error);
+                setLoading(false);
             }
-        }
-        setLoading(false);
-    };
+        };
+
+        init();
+
+        return () => unsubscribeResults();
+    }, [eventId]);
 
     // Results by class
     const resultsByClass = useMemo(() => {

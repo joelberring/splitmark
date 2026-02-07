@@ -1,11 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import BottomNavigation from '@/components/BottomNavigation';
 
 export default function SettingsPage() {
     return (
-        <div className="min-h-screen bg-slate-950 text-white pb-24">
+        <div className="min-h-screen bg-slate-950 text-white">
             {/* Header */}
             <header className="bg-slate-900 border-b border-slate-800 px-4 py-6">
                 <h1 className="text-xl font-bold uppercase tracking-tight">Mer</h1>
@@ -116,7 +115,6 @@ export default function SettingsPage() {
                 </div>
             </main>
 
-            <BottomNavigation />
         </div>
     );
 }
