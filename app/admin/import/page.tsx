@@ -7,9 +7,13 @@ import { trailImporter } from '@/lib/importers/trail-importer';
 import { ExternalEvent } from '@/lib/importers/base';
 import { enrichEventContent } from '@/lib/ai/ai-formatter';
 import { createEvent } from '@/lib/firestore/events';
-import { useRouter } from 'next/navigation';
+import { useRequireAuth } from '@/lib/auth/hooks';
+import { useUserWithRoles } from '@/lib/auth/usePermissions';
+import { getPreferredClubIdForUser } from '@/lib/auth/event-admins';
 
 export default function ImportPage() {
+    const { user: authUser, loading: authLoading } = useRequireAuth('/login');
+    const { user: roleUser, loading: roleLoading } = useUserWithRoles();
     const [source, setSource] = useState<'eventor' | 'trail'>('eventor');
     const [fromDate, setFromDate] = useState(new Date().toISOString().split('T')[0]);
     const [toDate, setToDate] = useState(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
@@ -17,7 +21,15 @@ export default function ImportPage() {
     const [events, setEvents] = useState<ExternalEvent[]>([]);
     const [enriching, setEnriching] = useState<Record<string, boolean>>({});
     const [importing, setImporting] = useState<Record<string, boolean>>({});
-    const router = useRouter();
+    const preferredClubId = getPreferredClubIdForUser(roleUser);
+
+    if (authLoading || roleLoading) {
+        return (
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+            </div>
+        );
+    }
 
     const handleFetch = async () => {
         setLoading(true);
@@ -58,6 +70,7 @@ export default function ImportPage() {
     const handleImport = async (event: ExternalEvent) => {
         setImporting(prev => ({ ...prev, [event.externalId]: true }));
         try {
+            const creatorId = roleUser?.id || authUser?.uid || 'unknown';
             await createEvent({
                 name: event.name,
                 date: event.date,
@@ -70,7 +83,10 @@ export default function ImportPage() {
                 externalId: event.externalId,
                 source: event.source,
                 type: source === 'trail' ? 'Trail' : 'Orientering',
+                createdBy: creatorId,
+                clubId: preferredClubId,
             });
+
             alert(`Importerat: ${event.name}`);
         } catch (error) {
             console.error('Import failed:', error);

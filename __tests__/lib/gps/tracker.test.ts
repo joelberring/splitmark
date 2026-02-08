@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it } from '@jest/globals';
 import { gpsTracker } from '@/lib/gps/tracker';
 
 describe('GPS Tracker', () => {

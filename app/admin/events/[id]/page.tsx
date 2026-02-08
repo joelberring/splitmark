@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import HelpButton from '@/components/HelpButton';
 import {
@@ -12,32 +12,40 @@ import {
     TimingTab,
     ParticipantsTab,
     MapTab,
+    CourseBuilderTab,
     SpeakerTab,
     SafetyTab,
+    OperationsTab,
     EventData,
-    saveEvent as localSaveEvent,
 } from './components';
-import { getEvent, saveEvent, type FirestoreEvent } from '@/lib/firestore/events';
+import { getEvent, saveEvent } from '@/lib/firestore/events';
 import { subscribeToEntries } from '@/lib/firestore/entries';
 import type { Entry } from '@/types/entry';
+import { useUserWithRoles } from '@/lib/auth/usePermissions';
+import { isEventAdmin } from '@/lib/auth/permissions';
+import { resolveEventAdminIds } from '@/lib/auth/event-admins';
 
-type TabId = 'overview' | 'classes' | 'entries' | 'lottning' | 'timing' | 'safety' | 'map' | 'participants' | 'speaker';
+type TabId = 'overview' | 'operations' | 'classes' | 'entries' | 'lottning' | 'timing' | 'safety' | 'map' | 'coursebuilder' | 'participants' | 'speaker';
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
     { id: 'overview', label: 'Översikt', icon: '📊' },
+    { id: 'operations', label: 'Stationsläge', icon: '🧰' },
     { id: 'classes', label: 'Klasser', icon: '🗺️' },
     { id: 'entries', label: 'Anmälningar', icon: '📝' },
     { id: 'lottning', label: 'Lottning', icon: '🎲' },
     { id: 'timing', label: 'Tidtagning', icon: '⏱️' },
     { id: 'safety', label: 'Säkerhet', icon: '🚩' },
     { id: 'map', label: 'Karta', icon: '🎯' },
+    { id: 'coursebuilder', label: 'Banläggning', icon: '🧭' },
     { id: 'speaker', label: 'Speaker', icon: '🎙️' },
     { id: 'participants', label: 'Deltagarläge', icon: '📱' },
 ];
 
 export default function EventManagePage() {
     const params = useParams();
+    const searchParams = useSearchParams();
     const eventId = params.id as string;
+    const { user, loading: userLoading } = useUserWithRoles();
 
     const [event, setEvent] = useState<EventData | null>(null);
     const [entries, setEntries] = useState<Entry[]>([]);
@@ -47,17 +55,44 @@ export default function EventManagePage() {
     const [editForm, setEditForm] = useState({ name: '', date: '', time: '', location: '' });
 
     useEffect(() => {
+        const requestedTab = searchParams.get('tab');
+        if (!requestedTab) return;
+
+        const validTab = TABS.find((tab) => tab.id === requestedTab);
+        if (validTab) {
+            setActiveTab(validTab.id);
+        }
+    }, [searchParams]);
+
+    useEffect(() => {
         let unsubscribeEntries = () => { };
+        let isMounted = true;
 
         const load = async () => {
             try {
                 const found = await getEvent(eventId);
+                if (!isMounted) return;
+
                 if (found) {
+                    const normalizedEventAdmins = resolveEventAdminIds({
+                        id: found.id,
+                        clubId: found.clubId,
+                        createdBy: found.createdBy,
+                        eventAdminIds: found.eventAdminIds,
+                    });
+
+                    const existingAdminIds = found.eventAdminIds || [];
+                    const adminIdsChanged =
+                        normalizedEventAdmins.length !== existingAdminIds.length
+                        || normalizedEventAdmins.some((id) => !existingAdminIds.includes(id));
+
                     setEvent({
                         ...found,
+                        eventAdminIds: normalizedEventAdmins,
                         classes: found.classes || [],
                         entries: [], // Will be filled by subscription
                     } as any);
+
                     setEditForm({
                         name: found.name || '',
                         date: found.date || '',
@@ -65,10 +100,19 @@ export default function EventManagePage() {
                         location: found.location || '',
                     });
 
+                    if (adminIdsChanged) {
+                        saveEvent({
+                            id: found.id,
+                            eventAdminIds: normalizedEventAdmins,
+                        }).catch((error) => {
+                            console.error('Failed to sync event admins:', error);
+                        });
+                    }
+
                     unsubscribeEntries = subscribeToEntries(eventId, (updatedEntries) => {
                         setEntries(updatedEntries);
-                        setLoading(false);
                     });
+                    setLoading(false);
                 } else {
                     setLoading(false);
                 }
@@ -79,7 +123,10 @@ export default function EventManagePage() {
         };
         load();
 
-        return () => unsubscribeEntries();
+        return () => {
+            isMounted = false;
+            unsubscribeEntries();
+        };
     }, [eventId]);
 
     const handleToggleStatus = async () => {
@@ -104,7 +151,7 @@ export default function EventManagePage() {
         setShowEditModal(false);
     };
 
-    if (loading) {
+    if (loading || userLoading) {
         return (
             <div className="min-h-screen bg-slate-950 flex items-center justify-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
@@ -119,6 +166,29 @@ export default function EventManagePage() {
                     <div className="text-6xl mb-4 opacity-30">❌</div>
                     <h2 className="text-xl font-bold text-white mb-4">Tävling hittades inte</h2>
                     <Link href="/admin" className="text-emerald-400 hover:underline">Tillbaka till admin</Link>
+                </div>
+            </div>
+        );
+    }
+
+    const hasEventAccess = !!(
+        user
+        && event
+        && isEventAdmin(user, event.id, event.clubId, event.createdBy)
+    );
+
+    if (!hasEventAccess) {
+        return (
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+                <div className="max-w-md bg-slate-900 border border-slate-800 rounded-xl p-8 text-center">
+                    <div className="text-6xl mb-4 opacity-30">🔒</div>
+                    <h2 className="text-xl font-bold text-white mb-4">Åtkomst Nekad</h2>
+                    <p className="text-slate-400 mb-6">
+                        Endast tävlingsadmins, klubbadmins i arrangerande klubb eller superadmin får hantera tävlingen.
+                    </p>
+                    <Link href="/admin" className="inline-block px-6 py-3 bg-emerald-600 text-white rounded-lg font-bold uppercase tracking-widest hover:bg-emerald-500 transition-colors">
+                        Tillbaka
+                    </Link>
                 </div>
             </div>
         );
@@ -193,13 +263,15 @@ export default function EventManagePage() {
 
             {/* Content */}
             <div className="max-w-7xl mx-auto px-4 py-8">
-                {activeTab === 'overview' && <OverviewTab event={{ ...event, entries } as any} />}
+                {activeTab === 'overview' && <OverviewTab event={{ ...event, entries } as any} setEvent={setEvent} />}
+                {activeTab === 'operations' && <OperationsTab event={{ ...event, entries } as any} />}
                 {activeTab === 'classes' && <ClassesTab event={{ ...event, entries } as any} setEvent={setEvent} />}
                 {activeTab === 'entries' && <EntriesTab event={{ ...event, entries } as any} setEvent={setEvent} />}
                 {activeTab === 'lottning' && <LottningTab event={{ ...event, entries } as any} setEvent={setEvent} />}
                 {activeTab === 'timing' && <TimingTab event={{ ...event, entries } as any} setEvent={setEvent} />}
                 {activeTab === 'safety' && <SafetyTab event={{ ...event, entries } as any} setEvent={setEvent} />}
                 {activeTab === 'map' && <MapTab event={{ ...event, entries } as any} eventId={eventId} setEvent={setEvent} />}
+                {activeTab === 'coursebuilder' && <CourseBuilderTab event={{ ...event, entries } as any} eventId={eventId} setEvent={setEvent} />}
                 {activeTab === 'speaker' && <SpeakerTab event={{ ...event, entries } as any} />}
                 {activeTab === 'participants' && <ParticipantsTab event={{ ...event, entries } as any} setEvent={setEvent} />}
             </div>
@@ -282,4 +354,3 @@ export default function EventManagePage() {
         </div>
     );
 }
-

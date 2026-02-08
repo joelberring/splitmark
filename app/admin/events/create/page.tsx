@@ -1,16 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRequireAuth } from '@/lib/auth/hooks';
 import ControlSensitivityPicker from '@/components/Admin/ControlSensitivityPicker';
 import type { GPSModeSettings, SpectatorModeSettings } from '@/types/virtual-controls';
 import { DEFAULT_SPECTATOR_SETTINGS } from '@/types/virtual-controls';
+import { useUserWithRoles } from '@/lib/auth/usePermissions';
+import { canCreateEventAtLevel, type EventCreationLevel } from '@/lib/auth/permissions';
+import {
+    getPreferredClubIdForUser,
+    initializeEventAdminsForNewEvent,
+} from '@/lib/auth/event-admins';
 
 type Step = 'basic' | 'media' | 'classes' | 'registration' | 'publish';
 
 export default function CreateEventPage() {
-    const { user, loading } = useRequireAuth('/login');
+    const { user: authUser, loading } = useRequireAuth('/login');
+    const { user: roleUser, loading: roleLoading } = useUserWithRoles();
     const router = useRouter();
 
     const [currentStep, setCurrentStep] = useState<Step>('basic');
@@ -58,7 +65,18 @@ export default function CreateEventPage() {
     // Spectator mode settings
     const [spectatorMode, setSpectatorMode] = useState<SpectatorModeSettings>(DEFAULT_SPECTATOR_SETTINGS);
 
-    if (loading) {
+    const preferredClubId = getPreferredClubIdForUser(roleUser);
+    const canCreateHigherLevel = roleUser
+        ? canCreateEventAtLevel(roleUser, 'district', preferredClubId)
+        : false;
+
+    useEffect(() => {
+        if (!canCreateHigherLevel && (eventData.classification === 'Regional' || eventData.classification === 'National')) {
+            setEventData(prev => ({ ...prev, classification: 'Local' }));
+        }
+    }, [canCreateHigherLevel, eventData.classification]);
+
+    if (loading || roleLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
@@ -69,6 +87,18 @@ export default function CreateEventPage() {
     const handleSubmit = async () => {
         // Create event with proper structure
         const eventId = `event-${Date.now()}`;
+        const creatorId = roleUser?.id || authUser?.uid || 'unknown';
+        const classificationToLevel: Record<'National' | 'Regional' | 'Local', EventCreationLevel> = {
+            Local: 'local',
+            Regional: 'district',
+            National: 'national',
+        };
+        const eventLevel = classificationToLevel[eventData.classification];
+
+        if (roleUser && !canCreateEventAtLevel(roleUser, eventLevel, preferredClubId)) {
+            alert('Distrikts- och nationella tävlingar kräver klubbadmin-behörighet.');
+            return;
+        }
 
         // Convert class names to proper class objects
         const classObjects = classes.map((name, index) => ({
@@ -76,6 +106,12 @@ export default function CreateEventPage() {
             name,
             courseId: undefined, // Will be linked later in courses page
         }));
+
+        const eventAdminIds = initializeEventAdminsForNewEvent({
+            eventId,
+            createdBy: creatorId,
+            clubId: preferredClubId,
+        });
 
         const newEvent = {
             id: eventId,
@@ -101,7 +137,9 @@ export default function CreateEventPage() {
             spectatorMode,
             // Metadata
             createdAt: new Date().toISOString(),
-            createdBy: user?.uid || 'unknown',
+            createdBy: creatorId,
+            clubId: preferredClubId,
+            eventAdminIds,
             status: 'draft',
         };
 
@@ -254,9 +292,14 @@ export default function CreateEventPage() {
                                     className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                                 >
                                     <option value="Local">Lokal</option>
-                                    <option value="Regional">Regional</option>
-                                    <option value="National">Nationell</option>
+                                    <option value="Regional" disabled={!canCreateHigherLevel}>Distrikt (kräver klubbadmin)</option>
+                                    <option value="National" disabled={!canCreateHigherLevel}>Nationell (kräver klubbadmin)</option>
                                 </select>
+                                {!canCreateHigherLevel && (
+                                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                                        Endast klubbadmin kan skapa distrikts- och nationella tävlingar.
+                                    </p>
+                                )}
                             </div>
 
                             <div>

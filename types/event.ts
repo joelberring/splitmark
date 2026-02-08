@@ -1,3 +1,8 @@
+import type {
+    EventPlanningControl,
+    EventPlanningCourse,
+} from '@/lib/events/course-planning';
+
 export interface StoredEvent {
     id: string;
     name: string;
@@ -15,9 +20,13 @@ export interface StoredEvent {
     attachments?: any[];
     images?: any[];
     classification?: string;
-    ppenControls?: any[];
+    ppenControls?: EventPlanningControl[];
+    ppenCourses?: EventPlanningCourse[];
     calibration?: any;
     calibrationAnchors?: any;
+    clubId?: string;
+    createdBy?: string;
+    eventAdminIds?: string[];
 }
 
 export interface EventClass {

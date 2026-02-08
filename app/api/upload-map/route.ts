@@ -3,6 +3,8 @@ import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { sanitizeFilename } from '@/lib/import/filename-utils';
 
+const MAX_UPLOAD_SIZE_BYTES = 40 * 1024 * 1024; // 40 MB
+
 export async function POST(request: NextRequest) {
     const data = await request.formData();
     const file: File | null = data.get('file') as unknown as File;
@@ -10,6 +12,21 @@ export async function POST(request: NextRequest) {
 
     if (!file) {
         return NextResponse.json({ success: false, message: 'No file uploaded' }, { status: 400 });
+    }
+
+    if (!raceId || typeof raceId !== 'string') {
+        return NextResponse.json({ success: false, message: 'Missing raceId' }, { status: 400 });
+    }
+
+    if (!file.type.startsWith('image/')) {
+        return NextResponse.json({ success: false, message: 'Only image files are supported' }, { status: 400 });
+    }
+
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+        return NextResponse.json({
+            success: false,
+            message: 'File is too large. Compress or crop the map before upload.',
+        }, { status: 413 });
     }
 
     const bytes = await file.arrayBuffer();
@@ -21,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     // Sanitize filename
     const safeFilename = sanitizeFilename(file.name);
-    const filename = `${raceId}-${Date.now()}-${safeFilename}`;
+    const filename = `${sanitizeFilename(raceId)}-${Date.now()}-${safeFilename}`;
     const filepath = path.join(uploadDir, filename);
 
     try {

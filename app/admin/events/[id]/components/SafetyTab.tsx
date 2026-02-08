@@ -1,6 +1,20 @@
-import { useState } from 'react';
 import HelpButton from '@/components/HelpButton';
-import { EventData, Entry, saveEvent } from './shared';
+import { EventData, Entry } from './shared';
+import { saveEntry } from '@/lib/firestore/entries';
+
+function entryDisplayName(entry: any): string {
+    if (typeof entry?.name === 'string' && entry.name.trim()) return entry.name.trim();
+    const firstName = typeof entry?.firstName === 'string' ? entry.firstName.trim() : '';
+    const lastName = typeof entry?.lastName === 'string' ? entry.lastName.trim() : '';
+    const fullName = `${firstName} ${lastName}`.trim();
+    return fullName || 'Okänd löpare';
+}
+
+function entryDisplayClub(entry: any): string {
+    if (typeof entry?.club === 'string' && entry.club.trim()) return entry.club.trim();
+    if (typeof entry?.clubName === 'string' && entry.clubName.trim()) return entry.clubName.trim();
+    return 'Okänd klubb';
+}
 
 export default function SafetyTab({ event, setEvent }: { event: EventData; setEvent: (e: EventData) => void }) {
     // Participants who have started but not finished/dnf/mp
@@ -8,13 +22,25 @@ export default function SafetyTab({ event, setEvent }: { event: EventData; setEv
         e.status === 'started' || (e.startTime && !e.finishTime && e.status === 'registered')
     );
 
-    const handleStatusUpdate = (entryId: string, newStatus: Entry['status']) => {
+    const handleStatusUpdate = async (entryId: string, newStatus: Entry['status']) => {
         const updatedEntries = event.entries.map(e =>
             e.id === entryId ? { ...e, status: newStatus } : e
         );
         const updatedEvent = { ...event, entries: updatedEntries };
         setEvent(updatedEvent);
-        saveEvent(updatedEvent);
+
+        const updatedEntry = updatedEntries.find((entry) => entry.id === entryId);
+        if (!updatedEntry) return;
+
+        try {
+            await saveEntry(event.id, {
+                ...(updatedEntry as any),
+                status: newStatus,
+                updatedAt: new Date().toISOString(),
+            });
+        } catch (error) {
+            console.error('Failed to update safety status:', error);
+        }
     };
 
     const entriesByClass: Record<string, Entry[]> = {};
@@ -60,9 +86,9 @@ export default function SafetyTab({ event, setEvent }: { event: EventData; setEv
                                 {entriesByClass[className].map(entry => (
                                     <div key={entry.id} className="p-4 flex items-center justify-between hover:bg-slate-800/30 transition-colors">
                                         <div>
-                                            <div className="font-bold text-white">{entry.name}</div>
+                                            <div className="font-bold text-white">{entryDisplayName(entry)}</div>
                                             <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
-                                                <span>{entry.club}</span>
+                                                <span>{entryDisplayClub(entry)}</span>
                                                 <span className="w-1 h-1 bg-slate-700 rounded-full"></span>
                                                 <span className="font-mono">Start: {entry.startTime || '--:--'}</span>
                                             </div>

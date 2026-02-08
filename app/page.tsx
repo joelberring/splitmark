@@ -5,6 +5,7 @@ import { useAuthState } from '@/lib/auth/hooks';
 import Link from 'next/link';
 import { seedDemoEventsIfEmpty } from '@/lib/demo-data';
 import { getPublishedEvents } from '@/lib/firestore/events';
+import { getEventAccessProfile } from '@/lib/events/competition';
 
 interface EventCardData {
   id: string;
@@ -12,12 +13,13 @@ interface EventCardData {
   location: string;
   date: string;
   participants: number;
-  isLive?: boolean;
-  canRegister?: boolean;
+  status: 'draft' | 'upcoming' | 'live' | 'completed';
+  isLive: boolean;
+  canRegister: boolean;
 }
 
 export default function HomePage() {
-  const { user, loading, isAuthenticated } = useAuthState();
+  const { user } = useAuthState();
   const [events, setEvents] = useState<EventCardData[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
 
@@ -29,30 +31,39 @@ export default function HomePage() {
         seedDemoEventsIfEmpty().catch(err => console.error("Seeding failed on homepage:", err));
 
         const rawEvents = await getPublishedEvents();
-        const now = new Date();
 
-        const mapped: EventCardData[] = rawEvents.map((e: any) => {
-          const eventDate = new Date(e.date);
-          const isPast = eventDate < now;
-          const isToday = eventDate.toDateString() === now.toDateString();
+        const mapped: EventCardData[] = rawEvents
+          .map((event: any) => {
+            const access = getEventAccessProfile(event, user);
+            if (!access.canView) return null;
 
-          return {
-            id: e.id,
-            name: e.name || 'Namnlös tävling',
-            location: e.location || 'Okänd plats',
-            date: e.date || new Date().toISOString().split('T')[0],
-            participants: (e.entries?.length) ||
-              (Array.isArray(e.classes) ? e.classes.reduce((sum: number, c: any) => sum + (Number(c.entryCount) || 0), 0) : 0),
-            isLive: isToday || e.status === 'live',
-            canRegister: !isPast && e.status !== 'completed',
-          };
-        });
+            return {
+              id: event.id,
+              name: event.name || 'Namnlös tävling',
+              location: event.location || 'Okänd plats',
+              date: event.date || new Date().toISOString().split('T')[0],
+              participants: (event.entries?.length) ||
+                (Array.isArray(event.classes) ? event.classes.reduce((sum: number, c: any) => sum + (Number(c.entryCount) || 0), 0) : 0),
+              status: access.status,
+              isLive: access.status === 'live',
+              canRegister: access.canRegister,
+            };
+          })
+          .filter(Boolean) as EventCardData[];
 
-        // Sort: live first, then upcoming, then past
+        // Sort: live first, then upcoming, then completed
         mapped.sort((a, b) => {
-          if (a.isLive && !b.isLive) return -1;
-          if (!a.isLive && b.isLive) return 1;
-          return new Date(a.date).getTime() - new Date(b.date).getTime();
+          const rank = (event: EventCardData) => {
+            if (event.status === 'live') return 0;
+            if (event.status === 'upcoming') return 1;
+            return 2;
+          };
+          const statusDiff = rank(a) - rank(b);
+          if (statusDiff !== 0) return statusDiff;
+
+          const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+          if (a.status === 'completed') return -dateDiff;
+          return dateDiff;
         });
 
         setEvents(mapped.slice(0, 5));
@@ -60,16 +71,16 @@ export default function HomePage() {
         console.error('Failed to load events:', err);
         // Fallback to static demo if everything fails
         setEvents([
-          { id: '1', name: 'SM Medeldistans', location: 'Örebro', date: '2025-10-26', participants: 320, isLive: true },
-          { id: '2', name: 'Stockholm City Race', location: 'Stadsmiljö', date: '2025-11-12', participants: 850, canRegister: true },
-          { id: '3', name: 'Nattorientering Tyresta', location: 'Tyresta', date: '2025-12-18', participants: 45, canRegister: true },
+          { id: '1', name: 'SM Medeldistans', location: 'Örebro', date: '2026-10-26', participants: 320, status: 'live', isLive: true, canRegister: false },
+          { id: '2', name: 'Stockholm City Race', location: 'Stadsmiljö', date: '2026-11-12', participants: 850, status: 'upcoming', isLive: false, canRegister: false },
+          { id: '3', name: 'Nattorientering Tyresta', location: 'Tyresta', date: '2026-12-18', participants: 45, status: 'upcoming', isLive: false, canRegister: false },
         ]);
       }
       setLoadingEvents(false);
     };
 
     loadEvents();
-  }, []);
+  }, [user]);
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);

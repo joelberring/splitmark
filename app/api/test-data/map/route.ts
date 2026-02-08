@@ -1,15 +1,20 @@
 import { NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
-import path from 'path';
+import { resolveMapImageMimeType, resolveTestCompetitionFiles } from '@/lib/test-event/files';
 
 export async function GET() {
     try {
-        const filePath = path.join(process.cwd(), 'public', 'test-map.png');
+        const resolved = await resolveTestCompetitionFiles();
+        const filePath = resolved.files.mapImage;
+        if (!filePath) {
+            return NextResponse.json({ error: 'Map file not found' }, { status: 404 });
+        }
+
         const content = await readFile(filePath);
 
         return new NextResponse(new Uint8Array(content), {
             headers: {
-                'Content-Type': 'image/png',
+                'Content-Type': resolveMapImageMimeType(filePath),
                 'Cache-Control': 'public, max-age=31536000',
             },
         });

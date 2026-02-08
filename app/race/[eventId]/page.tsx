@@ -32,7 +32,8 @@ export default function RacePage() {
             // Get current user (from dev-login or auth)
             const devUser = localStorage.getItem('dev-auth-user');
             const firebaseUser = auth?.currentUser;
-            const userId = firebaseUser?.uid || (devUser ? JSON.parse(devUser).uid : null);
+            const parsedDevUser = devUser ? JSON.parse(devUser) : null;
+            const userId = firebaseUser?.uid || parsedDevUser?.uid || parsedDevUser?.id || null;
 
             try {
                 // 1. Load event from Firestore

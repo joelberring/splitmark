@@ -1,13 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import HelpButton from '@/components/HelpButton';
 import { parseIOFXML } from '@/lib/parsers/iof-xml-parser';
+import { useRequireAuth } from '@/lib/auth/hooks';
+import { useUserWithRoles } from '@/lib/auth/usePermissions';
+import { canCreateEventAtLevel } from '@/lib/auth/permissions';
+import {
+    getPreferredClubIdForUser,
+    initializeEventAdminsForNewEvent,
+} from '@/lib/auth/event-admins';
 
 export default function NewEventPage() {
     const router = useRouter();
+    const { user: authUser, loading: authLoading } = useRequireAuth('/login');
+    const { user: roleUser, loading: roleLoading } = useUserWithRoles();
     const [formData, setFormData] = useState({
         name: '', date: '', time: '10:00', location: '',
         type: 'individual' as 'individual' | 'relay' | 'rogaining',
@@ -19,6 +28,24 @@ export default function NewEventPage() {
     const [importedClasses, setImportedClasses] = useState<any[]>([]);
     const [saving, setSaving] = useState(false);
     const [importing, setImporting] = useState(false);
+    const preferredClubId = getPreferredClubIdForUser(roleUser);
+    const canCreateHigherLevel = roleUser
+        ? canCreateEventAtLevel(roleUser, 'district', preferredClubId)
+        : false;
+
+    useEffect(() => {
+        if (!canCreateHigherLevel && (formData.classification === 'district' || formData.classification === 'national')) {
+            setFormData((previous) => ({ ...previous, classification: 'club' }));
+        }
+    }, [canCreateHigherLevel, formData.classification]);
+
+    if (authLoading || roleLoading) {
+        return (
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+            </div>
+        );
+    }
 
     const handleImportXML = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -55,19 +82,40 @@ export default function NewEventPage() {
         if (!formData.name || !formData.date) { alert('Namn och datum krävs'); return; }
         setSaving(true);
 
+        const creationLevel = formData.classification === 'club'
+            ? 'local'
+            : formData.classification === 'district'
+                ? 'district'
+                : 'national';
+
         // Get user club if visibility is club
-        let clubId = formData.clubId;
+        let clubId = formData.clubId || preferredClubId || '';
         if (formData.visibility === 'club' && !clubId) {
             const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-            clubId = userProfile.clubId;
+            clubId = userProfile.clubId || '';
         }
 
+        if (roleUser && !canCreateEventAtLevel(roleUser, creationLevel, clubId || preferredClubId)) {
+            alert('Distrikts- och nationella tävlingar kräver klubbadmin-behörighet.');
+            setSaving(false);
+            return;
+        }
+
+        const eventId = `event-${Date.now()}`;
+        const creatorId = roleUser?.id || authUser?.uid || 'unknown';
+        const eventAdminIds = initializeEventAdminsForNewEvent({
+            eventId,
+            createdBy: creatorId,
+            clubId: clubId || preferredClubId,
+        });
+
         const newEvent = {
-            id: `event-${Date.now()}`,
+            id: eventId,
             ...formData,
             clubId,
             createdAt: new Date().toISOString(),
-            createdBy: 'dev-super-admin',
+            createdBy: creatorId,
+            eventAdminIds,
             status: 'planned',
             classes: importedClasses.map(c => ({
                 id: `class-${Math.random().toString(36).substr(2, 9)}`,
@@ -156,16 +204,29 @@ export default function NewEventPage() {
                         <h2 className="text-sm font-bold uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-2">🏆 Klassificering<HelpButton topic="event-classification" size="sm" /></h2>
                         <div className="flex gap-6">
                             {[
-                                { id: 'club', label: 'Klubbtävling' },
-                                { id: 'district', label: 'Distriktstävling' },
-                                { id: 'national', label: 'Nationell' },
+                                { id: 'club', label: 'Klubbtävling', requiresClubAdmin: false },
+                                { id: 'district', label: 'Distriktstävling', requiresClubAdmin: true },
+                                { id: 'national', label: 'Nationell', requiresClubAdmin: true },
                             ].map((cls) => (
-                                <label key={cls.id} className="flex items-center gap-2 cursor-pointer">
-                                    <input type="radio" name="classification" value={cls.id} checked={formData.classification === cls.id} onChange={() => setFormData({ ...formData, classification: cls.id as any })} className="w-4 h-4 text-emerald-500 focus:ring-emerald-500 bg-slate-800 border-slate-600" />
+                                <label key={cls.id} className={`flex items-center gap-2 ${cls.requiresClubAdmin && !canCreateHigherLevel ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                                    <input
+                                        type="radio"
+                                        name="classification"
+                                        value={cls.id}
+                                        checked={formData.classification === cls.id}
+                                        onChange={() => setFormData({ ...formData, classification: cls.id as any })}
+                                        disabled={cls.requiresClubAdmin && !canCreateHigherLevel}
+                                        className="w-4 h-4 text-emerald-500 focus:ring-emerald-500 bg-slate-800 border-slate-600"
+                                    />
                                     <span className="text-slate-300">{cls.label}</span>
                                 </label>
                             ))}
                         </div>
+                        {!canCreateHigherLevel && (
+                            <p className="text-xs text-amber-400 mt-3">
+                                Endast klubbadmin kan skapa distrikts- och nationella tävlingar.
+                            </p>
+                        )}
                     </section>
 
                     {/* Options */}

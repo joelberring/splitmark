@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { parseIOFResultList, parseIOFCourseData } from '@/lib/import/iofXmlImport';
-import { parseWorldFile } from '@/lib/geo/worldfile';
 import { saveEvent, type FirestoreEvent } from '@/lib/firestore/events';
 import Link from 'next/link';
 
@@ -39,6 +38,10 @@ export default function MigratePage() {
                 status: 'completed',
                 location: 'Älvsjö, Stockholm',
                 time: '18:00',
+                map: {
+                    imageUrl: data.mapImagePath || '/api/test-event/map-image',
+                    name: `${data.eventName || 'Test competition'} map`,
+                },
             };
 
             // Parse Results
@@ -80,8 +83,7 @@ export default function MigratePage() {
             // Parse WorldFile
             if (data.data.worldFile) {
                 addLog('Parsing WorldFile...');
-                const wf = parseWorldFile(data.data.worldFile);
-                eventData.worldFile = wf;
+                eventData.worldFile = data.data.worldFile;
             }
 
             // 3. Save to Firestore

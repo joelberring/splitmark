@@ -133,12 +133,19 @@ export default function SpeakerPage() {
                                             'bg-slate-800/50 border-slate-700/50'
                                     }`}>
                                     <div className="flex justify-between items-start mb-1">
-                                        <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${msg.type === 'highlight' ? 'bg-emerald-500/20 text-emerald-400' :
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${msg.type === 'highlight' ? 'bg-emerald-500/20 text-emerald-400' :
                                                 msg.type === 'warning' ? 'bg-amber-500/20 text-amber-400' :
                                                     'bg-slate-700 text-slate-400'
-                                            }`}>
-                                            {msg.type}
-                                        </span>
+                                                }`}>
+                                                {msg.type}
+                                            </span>
+                                            {msg.pending && (
+                                                <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400">
+                                                    väntar sync
+                                                </span>
+                                            )}
+                                        </div>
                                         <span className="text-xs text-slate-500">
                                             {msg.timestamp?.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
                                         </span>

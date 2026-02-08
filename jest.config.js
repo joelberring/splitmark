@@ -1,6 +1,11 @@
-module.exports = {
-    preset: 'ts-jest',
-    testEnvironment: 'jsdom',
+const nextJest = require('next/jest');
+
+const createJestConfig = nextJest({
+    dir: './',
+});
+
+const customJestConfig = {
+    testEnvironment: 'jest-environment-jsdom',
     roots: ['<rootDir>'],
     testMatch: ['**/__tests__/**/*.ts?(x)', '**/?(*.)+(spec|test).ts?(x)'],
     moduleNameMapper: {
@@ -16,7 +21,7 @@ module.exports = {
         '!**/node_modules/**',
         '!**/.next/**',
     ],
-    coverageThresholds: {
+    coverageThreshold: {
         global: {
             branches: 70,
             functions: 70,
@@ -25,3 +30,5 @@ module.exports = {
         },
     },
 };
+
+module.exports = createJestConfig(customJestConfig);

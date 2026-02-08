@@ -19,7 +19,7 @@ jest.mock('next/navigation', () => ({
 
 // Mock Firebase
 jest.mock('firebase/app', () => ({
-    initializeApp: jest.fn(),
+    initializeApp: jest.fn(() => ({})),
     getApps: jest.fn(() => []),
 }));
 
@@ -31,6 +31,22 @@ jest.mock('firebase/auth', () => ({
     onAuthStateChanged: jest.fn(),
 }));
 
+jest.mock('firebase/firestore', () => {
+    const actual = jest.requireActual('firebase/firestore');
+    return {
+        ...actual,
+        getFirestore: jest.fn(() => ({})),
+    };
+});
+
+jest.mock('firebase/storage', () => {
+    const actual = jest.requireActual('firebase/storage');
+    return {
+        ...actual,
+        getStorage: jest.fn(() => ({})),
+    };
+});
+
 // Mock Geolocation API
 global.navigator.geolocation = {
     getCurrentPosition: jest.fn(),
@@ -39,4 +55,18 @@ global.navigator.geolocation = {
 };
 
 // Mock IndexedDB
-require('fake-indexeddb/auto');
+try {
+    require('fake-indexeddb/auto');
+} catch {
+    const noopRequest = () => ({
+        onsuccess: null,
+        onerror: null,
+        onupgradeneeded: null,
+        result: null,
+    });
+
+    global.indexedDB = {
+        open: jest.fn(() => noopRequest()),
+        deleteDatabase: jest.fn(() => noopRequest()),
+    };
+}

@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
-import { readFile } from 'fs/promises';
-import path from 'path';
+import { resolveTestCompetitionFiles, readTextFileIfExists } from '@/lib/test-event/files';
 
 export async function GET() {
     try {
-        const filePath = path.join(process.cwd(), 'data', 'ans', 'courses.ppen');
-        const content = await readFile(filePath, 'utf-8');
+        const resolved = await resolveTestCompetitionFiles();
+        const content = await readTextFileIfExists(resolved.files.purplePen);
+
+        if (!content) {
+            return NextResponse.json({ error: 'Purple Pen file not found' }, { status: 404 });
+        }
 
         return new NextResponse(content, {
             headers: {

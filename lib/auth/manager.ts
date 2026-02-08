@@ -277,14 +277,29 @@ export class AuthManager {
      */
     private async restoreOfflineAuthState(): Promise<void> {
         try {
-            const authState = await db.settings.get('auth_state');
+            const authState = await db.settings.get('auth_state') as any;
             if (authState && !this.currentUser) {
+                const roleValue = authState.role;
+                const restoredRole: UserRole = roleValue === 'admin' || roleValue === 'organizer'
+                    ? roleValue
+                    : 'runner';
+
+                const uid = typeof authState.uid === 'string' && authState.uid.trim()
+                    ? authState.uid.trim()
+                    : (typeof authState.userId === 'string' ? authState.userId.trim() : '');
+
+                if (!uid) {
+                    return;
+                }
+
                 this.currentUser = {
-                    uid: authState.userId || '',
-                    email: null,
-                    displayName: null,
-                    photoURL: null,
-                    role: 'runner',
+                    uid,
+                    email: typeof authState.email === 'string' ? authState.email : null,
+                    displayName: typeof authState.displayName === 'string' ? authState.displayName : null,
+                    photoURL: typeof authState.photoURL === 'string' ? authState.photoURL : null,
+                    role: restoredRole,
+                    eventorId: typeof authState.eventorId === 'string' ? authState.eventorId : undefined,
+                    clubId: typeof authState.clubId === 'string' ? authState.clubId : undefined,
                 };
                 this.notifyListeners();
             }

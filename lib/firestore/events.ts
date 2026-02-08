@@ -10,17 +10,20 @@ import {
     getDocs,
     getDoc,
     setDoc,
-    updateDoc,
     deleteDoc,
     onSnapshot,
     query,
-    where,
     orderBy,
     Timestamp,
     type QuerySnapshot,
     type DocumentData,
 } from 'firebase/firestore';
 import { firestore, COLLECTIONS, isFirebaseConfigured } from '../firebase';
+import { initializeEventAdminsForNewEvent } from '../auth/event-admins';
+import type {
+    EventPlanningControl,
+    EventPlanningCourse,
+} from '@/lib/events/course-planning';
 
 // Event types
 export interface FirestoreEvent {
@@ -31,16 +34,37 @@ export interface FirestoreEvent {
     location?: string;
     type: string;
     classification: string;
-    status: 'draft' | 'active' | 'completed';
+    status: 'draft' | 'upcoming' | 'live' | 'active' | 'completed';
     classes?: EventClass[];
     courses?: EventCourse[];
-    ppenControls?: any[];
-    ppenCourses?: any[];
+    ppenControls?: EventPlanningControl[];
+    ppenCourses?: EventPlanningCourse[];
     map?: {
         imageUrl: string;
         name?: string;
         bounds?: any;
         scale?: number;
+        visibility?: {
+            mode?: 'always' | 'scheduled' | 'hidden';
+            releaseAt?: string;
+            hideAt?: string;
+            fallbackBaseMap?: 'none' | 'osm';
+        };
+        optimization?: {
+            originalBytes?: number;
+            processedBytes?: number;
+            compressionRatio?: number;
+            originalWidth?: number;
+            originalHeight?: number;
+            width?: number;
+            height?: number;
+            cropApplied?: boolean;
+            cropRect?: { left: number; top: number; right: number; bottom: number };
+            format?: string;
+            quality?: number;
+            preset?: 'balanced' | 'mobile' | 'highDetail' | 'custom';
+            updatedAt?: string;
+        };
     };
     calibration?: any;
     calibrationAnchors?: any;
@@ -57,6 +81,7 @@ export interface FirestoreEvent {
     createdAt: Date;
     updatedAt: Date;
     createdBy?: string;
+    eventAdminIds?: string[];
     externalId?: string;
     source?: 'manual' | 'eventor' | 'trail';
 }
@@ -100,6 +125,33 @@ export interface EventCourse {
     controls: string[]; // IDs of controls
 }
 
+function normalizeEventStatus(status?: string): FirestoreEvent['status'] {
+    const value = (status || '').trim().toLowerCase();
+
+    if (['completed', 'finished', 'closed'].includes(value)) return 'completed';
+    if (['live', 'ongoing', 'running'].includes(value)) return 'live';
+    if (['active'].includes(value)) return 'active';
+    if (['upcoming', 'scheduled', 'published', 'registration_open', 'open'].includes(value)) return 'upcoming';
+    return 'draft';
+}
+
+function toFirestoreEvent(id: string, data: DocumentData): FirestoreEvent {
+    return {
+        id,
+        ...data,
+        status: normalizeEventStatus(data.status),
+        createdAt: data.createdAt?.toDate?.() || new Date(),
+        updatedAt: data.updatedAt?.toDate?.() || new Date(),
+    } as FirestoreEvent;
+}
+
+function isPublishedEvent(event: FirestoreEvent): boolean {
+    const status = normalizeEventStatus(event.status);
+    if (status === 'draft') return false;
+    if (event.visibility === 'private') return false;
+    return true;
+}
+
 // ============= Firestore Operations =============
 
 /**
@@ -118,12 +170,7 @@ export async function getEvents(): Promise<FirestoreEvent[]> {
         const q = query(eventsRef, orderBy('date', 'desc'));
         const snapshot = await getDocs(q);
 
-        return snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-            updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-        })) as FirestoreEvent[];
+        return snapshot.docs.map(doc => toFirestoreEvent(doc.id, doc.data()));
     } catch (error) {
         console.error('Error fetching events from Firestore:', error);
         // Fallback to localStorage
@@ -147,12 +194,7 @@ export async function getEvent(eventId: string): Promise<FirestoreEvent | null> 
             return null;
         }
 
-        return {
-            id: snapshot.id,
-            ...snapshot.data(),
-            createdAt: snapshot.data().createdAt?.toDate?.() || new Date(),
-            updatedAt: snapshot.data().updatedAt?.toDate?.() || new Date(),
-        } as FirestoreEvent;
+        return toFirestoreEvent(snapshot.id, snapshot.data());
     } catch (error) {
         console.error('Error fetching event:', error);
         return getEventFromLocalStorage(eventId);
@@ -202,9 +244,17 @@ export async function saveEvent(event: Partial<FirestoreEvent> & { id: string })
  */
 export async function createEvent(event: Omit<FirestoreEvent, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
     const id = `event-${Date.now()}`;
+    const eventAdminIds = event.eventAdminIds && event.eventAdminIds.length > 0
+        ? event.eventAdminIds
+        : initializeEventAdminsForNewEvent({
+            eventId: id,
+            createdBy: event.createdBy,
+            clubId: event.clubId,
+        });
 
     const newEvent: FirestoreEvent = {
         ...event,
+        eventAdminIds,
         id,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -249,12 +299,7 @@ export function subscribeToEvents(
     const q = query(eventsRef, orderBy('date', 'desc'));
 
     const unsubscribe = onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
-        const events = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-            updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-        })) as FirestoreEvent[];
+        const events = snapshot.docs.map(doc => toFirestoreEvent(doc.id, doc.data()));
 
         callback(events);
     }, (error) => {
@@ -267,34 +312,11 @@ export function subscribeToEvents(
 }
 
 /**
- * Get published events (active and completed)
+ * Get published events (publicly visible non-draft events)
  */
 export async function getPublishedEvents(): Promise<FirestoreEvent[]> {
-    if (!isFirebaseConfigured() || !firestore) {
-        const events = await getEventsFromLocalStorage();
-        return events.filter(e => e.status === 'active' || e.status === 'completed');
-    }
-
-    try {
-        const eventsRef = collection(firestore, COLLECTIONS.EVENTS);
-        const q = query(
-            eventsRef,
-            where('status', 'in', ['active', 'completed']),
-            orderBy('date', 'desc')
-        );
-        const snapshot = await getDocs(q);
-
-        return snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-            updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-        })) as FirestoreEvent[];
-    } catch (error) {
-        console.error('Error fetching published events:', error);
-        const events = await getEventsFromLocalStorage();
-        return events.filter(e => e.status === 'active' || e.status === 'completed');
-    }
+    const events = await getEvents();
+    return events.filter(isPublishedEvent);
 }
 
 // ============= localStorage Fallback =============
@@ -304,7 +326,13 @@ function getEventsFromLocalStorage(): FirestoreEvent[] {
     const stored = localStorage.getItem('events');
     if (!stored) return [];
     try {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored) as FirestoreEvent[];
+        return parsed.map(event => ({
+            ...event,
+            status: normalizeEventStatus(event.status),
+            createdAt: event.createdAt ? new Date(event.createdAt) : new Date(),
+            updatedAt: event.updatedAt ? new Date(event.updatedAt) : new Date(),
+        }));
     } catch {
         return [];
     }

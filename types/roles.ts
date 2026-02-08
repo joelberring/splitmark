@@ -9,7 +9,8 @@ export type SystemRole = 'super_admin' | 'user';
 export type ClubRole = 'club_admin' | 'trainer' | 'member';
 
 // Event-level role (per event)
-export type EventRole = 'organizer';
+// Keep "organizer" for backward compatibility with already stored role data.
+export type EventRole = 'event_admin' | 'organizer';
 
 // Resource types for permission checking
 export type ResourceType = 'club' | 'event' | 'team' | 'member' | 'training' | 'track';

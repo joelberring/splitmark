@@ -6,12 +6,17 @@
 import { NextResponse } from 'next/server';
 import { fetchClubResults } from '@/lib/eventor/sync';
 
+function normalizeClubId(rawClubId: string): string {
+    return rawClubId.trim().replace(/^eventor-/, '');
+}
+
 export async function GET(
     request: Request,
     { params }: { params: Promise<{ clubId: string }> }
 ) {
     const apiKey = process.env.EVENTOR_API_KEY;
     const { clubId } = await params;
+    const normalizedClubId = normalizeClubId(clubId);
 
     if (!apiKey) {
         return NextResponse.json(
@@ -21,6 +26,13 @@ export async function GET(
     }
 
     try {
+        if (!normalizedClubId) {
+            return NextResponse.json(
+                { error: 'Club ID required' },
+                { status: 400 }
+            );
+        }
+
         // Fetch results for the last 30 days
         const now = new Date();
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -28,7 +40,7 @@ export async function GET(
         const fromDate = thirtyDaysAgo.toISOString().split('T')[0];
         const toDate = now.toISOString().split('T')[0];
 
-        const results = await fetchClubResults(apiKey, clubId, fromDate, toDate);
+        const results = await fetchClubResults(apiKey, normalizedClubId, fromDate, toDate);
 
         return NextResponse.json({
             results,

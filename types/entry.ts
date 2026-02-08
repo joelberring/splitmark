@@ -5,6 +5,7 @@
 export interface Entry {
     id: string;
     eventId: string;
+    userId?: string;
 
     // Personal info
     firstName: string;
@@ -39,6 +40,10 @@ export interface Entry {
     fee?: number;
     feePaid?: boolean;
     comment?: string;
+    teamName?: string;
+    registrationGroupId?: string;
+    registeredByUserId?: string;
+    isClubEntry?: boolean;
 
     createdAt: string;
     updatedAt: string;

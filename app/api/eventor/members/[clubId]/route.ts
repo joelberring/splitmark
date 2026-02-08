@@ -6,12 +6,17 @@
 import { NextResponse } from 'next/server';
 import { fetchClubMembers, fetchClubCompetitors } from '@/lib/eventor/sync';
 
+function normalizeClubId(rawClubId: string): string {
+    return rawClubId.trim().replace(/^eventor-/, '');
+}
+
 export async function GET(
     request: Request,
     { params }: { params: Promise<{ clubId: string }> }
 ) {
     const apiKey = process.env.EVENTOR_API_KEY;
     const { clubId } = await params;
+    const normalizedClubId = normalizeClubId(clubId);
 
     if (!apiKey) {
         return NextResponse.json(
@@ -20,7 +25,7 @@ export async function GET(
         );
     }
 
-    if (!clubId) {
+    if (!normalizedClubId) {
         return NextResponse.json(
             { error: 'Club ID required' },
             { status: 400 }
@@ -30,8 +35,8 @@ export async function GET(
     try {
         // Fetch members and competitors in parallel
         const [members, competitors] = await Promise.all([
-            fetchClubMembers(apiKey, clubId),
-            fetchClubCompetitors(apiKey, clubId).catch(() => []), // Competitors might fail for non-owned clubs
+            fetchClubMembers(apiKey, normalizedClubId),
+            fetchClubCompetitors(apiKey, normalizedClubId).catch(() => []), // Competitors might fail for non-owned clubs
         ]);
 
         // Merge competitor data (SI card, etc) with member data
@@ -47,7 +52,7 @@ export async function GET(
         });
 
         return NextResponse.json({
-            clubId,
+            clubId: normalizedClubId,
             members: enrichedMembers,
             count: enrichedMembers.length,
         });

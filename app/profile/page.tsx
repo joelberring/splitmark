@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuthState } from '@/lib/auth/hooks';
+import { useUserWithRoles } from '@/lib/auth/usePermissions';
 import { authManager } from '@/lib/auth/manager';
 import { useRouter } from 'next/navigation';
 import PageHeader from '@/components/PageHeader';
@@ -60,7 +61,8 @@ function getAvailableClasses(gender: 'male' | 'female' | '', birthYear: number |
 }
 
 export default function ProfilePage() {
-    const { user, loading } = useAuthState();
+    const { user: basicUser, loading } = useAuthState();
+    const { user: roleUser, highestRole } = useUserWithRoles();
     const router = useRouter();
     const [profile, setProfile] = useState<UserProfile>({ gender: '', birthYear: null, defaultClass: '', siCard: '', club: '', clubId: '', clubless: false });
     const [saved, setSaved] = useState(false);
@@ -92,10 +94,12 @@ export default function ProfilePage() {
         );
     }
 
-    if (!user) {
+    if (!basicUser) {
         router.push('/login');
         return null;
     }
+
+    const user = { ...basicUser, ...roleUser };
 
     const handleSignOut = async () => {
         await authManager.signOut();
@@ -120,7 +124,17 @@ export default function ProfilePage() {
                             </div>
                         )}
                         <div className="flex-1">
-                            <h2 className="text-lg font-bold">{user.displayName || 'Användare'}</h2>
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-lg font-bold">{user.displayName || 'Användare'}</h2>
+                                <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${highestRole === 'Super Admin' || highestRole === 'Administratör'
+                                        ? 'bg-purple-900/30 text-purple-400 border-purple-800/50'
+                                        : highestRole === 'Arrangör'
+                                            ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/50'
+                                            : 'bg-slate-800 text-slate-500 border-slate-700'
+                                    }`}>
+                                    {highestRole}
+                                </div>
+                            </div>
                             <p className="text-sm text-slate-400">{user.email}</p>
                         </div>
                     </div>
@@ -133,6 +147,27 @@ export default function ProfilePage() {
                             ⚠️ Fyll i dina uppgifter för att anmäla dig till tävlingar
                         </p>
                     </div>
+                )}
+
+                {/* Administration Access */}
+                {(user.role === 'admin' || user.role === 'organizer') && (
+                    <Link
+                        href="/admin"
+                        className="block p-5 bg-purple-900/20 border border-purple-800/50 rounded-xl mb-6 group hover:bg-purple-900/30 transition-all shadow-lg"
+                    >
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+                                    ⚙️
+                                </div>
+                                <div>
+                                    <h3 className="font-black uppercase tracking-tight text-white group-hover:text-purple-400 transition-colors">Administration</h3>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Hantera tävlingar och system</p>
+                                </div>
+                            </div>
+                            <span className="text-slate-600 group-hover:text-purple-400 transition-colors">→</span>
+                        </div>
+                    </Link>
                 )}
 
                 {/* Settings Form */}

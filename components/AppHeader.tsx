@@ -45,6 +45,9 @@ export default function AppHeader() {
                         <NavLink href="/events" label="Tävlingar" active={isActive('/events')} />
                         <NavLink href="/spectate" label="Live" active={isActive('/spectate')} />
                         <NavLink href="/discover" label="Utforska" active={isActive('/discover')} />
+                        {user && (user.role === 'admin' || user.role === 'organizer') && (
+                            <NavLink href="/admin" label="Admin" active={isActive('/admin')} />
+                        )}
                         {user && (
                             <NavLink
                                 href={user.clubId ? `/club/${user.clubId}` : '/join-club'}

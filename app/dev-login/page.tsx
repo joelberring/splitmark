@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { registerKnownUserIdentity } from '@/lib/auth/event-admins';
 
 interface DevUser {
     password: string;
@@ -47,6 +48,11 @@ export default function DevLoginPage() {
 
         localStorage.setItem('dev-auth-user', JSON.stringify(devSession));
         localStorage.setItem(`user-roles-${user.id}`, JSON.stringify({ systemRole: devSession.systemRole, clubs: devSession.clubs, eventRoles: {} }));
+        registerKnownUserIdentity({
+            id: user.id,
+            email: user.email,
+            displayName: user.displayName,
+        });
         if (user.role === 'super_admin') localStorage.setItem('dev-super-admin-active', 'true');
 
         if (user.role === 'club_admin' && user.clubId) {

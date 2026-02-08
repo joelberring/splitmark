@@ -5,6 +5,11 @@
 
 import { NextResponse } from 'next/server';
 import { fetchEventorOrganisations } from '@/lib/eventor/sync';
+import { findGeneratedEventorClub } from '@/lib/eventor/generated';
+
+function normalizeClubId(raw: string): string {
+    return raw.trim().toLowerCase().replace(/^eventor-/, '');
+}
 
 export async function GET(
     request: Request,
@@ -13,30 +18,47 @@ export async function GET(
     const apiKey = process.env.EVENTOR_API_KEY;
     const { clubId } = await params;
 
+    const generatedMatch = findGeneratedEventorClub(clubId);
+
     if (!apiKey) {
-        return NextResponse.json(
-            { error: 'Eventor API key not configured' },
-            { status: 500 }
-        );
+        if (!generatedMatch) {
+            return NextResponse.json({ error: 'Club not found' }, { status: 404 });
+        }
+
+        return NextResponse.json({
+            ...generatedMatch,
+            source: 'generated-file',
+        });
     }
 
     try {
         const allOrgs = await fetchEventorOrganisations(apiKey);
-        const club = allOrgs.find(org => org.id === clubId);
+        const normalizedClubId = normalizeClubId(clubId);
+        const club = allOrgs.find(org => normalizeClubId(org.id) === normalizedClubId);
 
         if (!club) {
-            return NextResponse.json(
-                { error: 'Club not found' },
-                { status: 404 }
-            );
+            if (generatedMatch) {
+                return NextResponse.json({
+                    ...generatedMatch,
+                    source: 'generated-file',
+                });
+            }
+            return NextResponse.json({ error: 'Club not found' }, { status: 404 });
         }
 
-        return NextResponse.json(club);
+        return NextResponse.json({
+            ...club,
+            source: 'eventor-api',
+        });
     } catch (error: any) {
         console.error(`Failed to fetch info for club ${clubId}:`, error);
-        return NextResponse.json(
-            { error: error.message || 'Failed to fetch club info' },
-            { status: 500 }
-        );
+        if (generatedMatch) {
+            return NextResponse.json({
+                ...generatedMatch,
+                source: 'generated-file',
+                warning: error.message || 'Falling back to generated club',
+            });
+        }
+        return NextResponse.json({ error: error.message || 'Failed to fetch club info' }, { status: 500 });
     }
 }

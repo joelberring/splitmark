@@ -6,6 +6,7 @@ import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import { seedDemoEventsIfEmpty } from '@/lib/demo-data';
 import { getEvents } from '@/lib/firestore/events';
+import { getEventAccessProfile } from '@/lib/events/competition';
 
 interface EventData {
     id: string;
@@ -16,8 +17,9 @@ interface EventData {
     classification?: string;
     organizer?: string;
     participants: number;
-    isLive?: boolean;
-    canRegister?: boolean;
+    status: 'draft' | 'upcoming' | 'live' | 'completed';
+    isLive: boolean;
+    canRegister: boolean;
     resultsUrl?: string;
     visibility?: string;
     clubId?: string;
@@ -43,7 +45,7 @@ export default function EventsPage() {
             }
         };
         init();
-    }, [filter]);
+    }, [filter, user]);
 
     const loadEvents = async () => {
         setLoading(true);
@@ -55,52 +57,49 @@ export default function EventsPage() {
             ]);
 
             const rawEvents = await fetchWithTimeout;
-            const now = new Date();
+            let fallbackClubId: string | undefined;
+            try {
+                const userProfileStored = localStorage.getItem('userProfile');
+                if (userProfileStored) {
+                    const userProfile = JSON.parse(userProfileStored);
+                    fallbackClubId = userProfile?.clubId;
+                }
+            } catch {
+                fallbackClubId = undefined;
+            }
+
+            const accessUser = user ? { ...user, clubId: user.clubId || fallbackClubId } : null;
 
             const mapped: EventData[] = (rawEvents || []).map((e: any) => {
-                const eventDate = new Date(e.date || now);
-                const isPast = eventDate < now;
-                const isToday = eventDate.toDateString() === now.toDateString();
+                const access = getEventAccessProfile(e, accessUser);
 
                 return {
                     id: e.id,
                     name: e.name || 'Namnlös tävling',
-                    date: e.date || now.toISOString().split('T')[0],
+                    date: e.date || new Date().toISOString().split('T')[0],
                     time: e.time,
                     location: e.location || 'Okänd plats',
                     classification: e.classification,
                     organizer: e.organizer,
                     participants: (e.entries?.length) ||
                         (Array.isArray(e.classes) ? e.classes.reduce((sum: number, c: any) => sum + (Number(c.entryCount) || 0), 0) : 0),
-                    isLive: isToday || e.status === 'live',
-                    canRegister: !isPast && e.status !== 'completed',
+                    status: access.status,
+                    isLive: access.status === 'live',
+                    canRegister: access.canRegister,
                     resultsUrl: e.resultsUrl,
+                    visibility: e.visibility,
+                    clubId: e.clubId,
+                    type: e.type,
                 };
             });
 
-            // Visibility logic
-            let userClubId: string | undefined = undefined;
-            try {
-                const userProfileStored = localStorage.getItem('userProfile');
-                if (userProfileStored) {
-                    const userProfile = JSON.parse(userProfileStored);
-                    userClubId = userProfile?.clubId;
-                }
-            } catch (e) { /* ignore */ }
-
             const filtered = mapped.filter((event: EventData) => {
-                const isVisible =
-                    !event.visibility || // If visibility is not set, assume public
-                    event.visibility === 'public' ||
-                    (event.visibility === 'club' && event.clubId === userClubId);
+                const access = getEventAccessProfile(event, accessUser);
+                if (!access.canView) return false;
 
-                if (!isVisible) return false;
-
-                const eventDate = new Date(event.date);
-
-                if (filter === 'upcoming') return eventDate >= now;
-                if (filter === 'past') return eventDate < now;
-                if (filter === 'trail') return event.type === 'Trail';
+                if (filter === 'upcoming') return access.status === 'upcoming' || access.status === 'live';
+                if (filter === 'past') return access.status === 'completed';
+                if (filter === 'trail') return (event.type || '').toLowerCase() === 'trail';
 
                 return true;
             });
@@ -108,7 +107,11 @@ export default function EventsPage() {
             filtered.sort((a, b) => {
                 const dateA = new Date(a.date).getTime();
                 const dateB = new Date(b.date).getTime();
-                if (filter === 'upcoming') return dateA - dateB;
+                if (filter === 'upcoming') {
+                    if (a.status === 'live' && b.status !== 'live') return -1;
+                    if (a.status !== 'live' && b.status === 'live') return 1;
+                    return dateA - dateB;
+                }
                 return dateB - dateA;
             });
 

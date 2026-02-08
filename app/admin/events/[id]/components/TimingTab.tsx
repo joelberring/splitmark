@@ -4,6 +4,20 @@ import { EventData, Entry, calculateResultTime } from './shared';
 import { saveEntry } from '@/lib/firestore/entries';
 import ResultEditModal from './ResultEditModal';
 
+function entryDisplayName(entry: any): string {
+    if (typeof entry?.name === 'string' && entry.name.trim()) return entry.name.trim();
+    const firstName = typeof entry?.firstName === 'string' ? entry.firstName.trim() : '';
+    const lastName = typeof entry?.lastName === 'string' ? entry.lastName.trim() : '';
+    const fullName = `${firstName} ${lastName}`.trim();
+    return fullName || 'Okänd löpare';
+}
+
+function entryDisplayClub(entry: any): string {
+    if (typeof entry?.club === 'string' && entry.club.trim()) return entry.club.trim();
+    if (typeof entry?.clubName === 'string' && entry.clubName.trim()) return entry.clubName.trim();
+    return 'Okänd klubb';
+}
+
 export default function TimingTab({ event, setEvent }: { event: EventData; setEvent: (e: EventData) => void }) {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
@@ -15,7 +29,7 @@ export default function TimingTab({ event, setEvent }: { event: EventData; setEv
     // Filter entries based on search
     const searchResults = searchQuery.length > 0
         ? event.entries.filter(e =>
-            e.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            entryDisplayName(e).toLowerCase().includes(searchQuery.toLowerCase()) ||
             e.siCard?.includes(searchQuery)
         ).slice(0, 5)
         : [];
@@ -99,12 +113,12 @@ export default function TimingTab({ event, setEvent }: { event: EventData; setEv
                                                 key={entry.id}
                                                 onClick={() => {
                                                     setSelectedEntryId(entry.id);
-                                                    setSearchQuery(entry.name);
+                                                    setSearchQuery(entryDisplayName(entry));
                                                 }}
                                                 className="w-full px-4 py-3 text-left hover:bg-slate-700 transition-colors border-b border-slate-700 last:border-0"
                                             >
-                                                <div className="font-bold text-white">{entry.name}</div>
-                                                <div className="text-[10px] text-slate-500 uppercase tracking-wider">{entry.className} · {entry.club}</div>
+                                                <div className="font-bold text-white">{entryDisplayName(entry)}</div>
+                                                <div className="text-[10px] text-slate-500 uppercase tracking-wider">{entry.className} · {entryDisplayClub(entry)}</div>
                                             </button>
                                         ))}
                                     </div>
@@ -172,8 +186,8 @@ export default function TimingTab({ event, setEvent }: { event: EventData; setEv
                                                     'bg-amber-500'
                                                 }`}></div>
                                             <div>
-                                                <div className="font-bold text-white text-sm group-hover:text-emerald-400 transition-colors">{entry.name}</div>
-                                                <div className="text-[10px] text-slate-500 uppercase tracking-widest">{entry.className} · {entry.club}</div>
+                                                <div className="font-bold text-white text-sm group-hover:text-emerald-400 transition-colors">{entryDisplayName(entry)}</div>
+                                                <div className="text-[10px] text-slate-500 uppercase tracking-widest">{entry.className} · {entryDisplayClub(entry)}</div>
                                             </div>
                                         </div>
                                         <div className="text-right">

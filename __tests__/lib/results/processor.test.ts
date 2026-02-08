@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { resultsProcessor } from '@/lib/results/processor';
 
 describe('Results Processor', () => {

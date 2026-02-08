@@ -8,6 +8,7 @@ import type {
     Action,
     ResourceType,
     PermissionResult,
+    EventRole,
     Club,
     Team,
     EventWithOwnership,
@@ -20,6 +21,41 @@ type ResourceContext = {
     teamId?: string;
     ownerId?: string;
 };
+
+export type EventCreationLevel = 'local' | 'district' | 'national' | 'training';
+
+function hasAnyClubAdminRole(user: UserWithRoles): boolean {
+    return Object.values(user.clubs).some(membership => membership.role === 'club_admin');
+}
+
+export function isEventAdminRole(role?: EventRole | string | null): boolean {
+    return role === 'event_admin' || role === 'organizer';
+}
+
+export function isEventAdmin(
+    user: UserWithRoles,
+    eventId: string,
+    clubId?: string,
+    createdBy?: string
+): boolean {
+    if (user.systemRole === 'super_admin') {
+        return true;
+    }
+
+    if (createdBy && user.id === createdBy) {
+        return true;
+    }
+
+    if (isEventAdminRole(user.eventRoles[eventId]?.role)) {
+        return true;
+    }
+
+    if (clubId && user.clubs[clubId]?.role === 'club_admin') {
+        return true;
+    }
+
+    return false;
+}
 
 /**
  * Check if user has permission to perform action on resource
@@ -110,14 +146,7 @@ function checkEventPermission(
     eventId: string,
     clubId?: string
 ): PermissionResult {
-    // Check if user is organizer for this event
-    const eventRole = user.eventRoles[eventId];
-    if (eventRole?.role === 'organizer') {
-        return { allowed: true };
-    }
-
-    // Check if user is club admin for event's club
-    if (clubId && user.clubs[clubId]?.role === 'club_admin') {
+    if (isEventAdmin(user, eventId, clubId)) {
         return { allowed: true };
     }
 
@@ -298,16 +327,41 @@ export function canInviteToClub(user: UserWithRoles, clubId: string): boolean {
  * Check if user can create events for club
  */
 export function canCreateEvent(user: UserWithRoles, clubId: string): boolean {
-    if (user.systemRole === 'super_admin') return true;
-    const role = user.clubs[clubId]?.role;
-    return role === 'club_admin' || role === 'trainer';
+    if (user.systemRole === 'super_admin') {
+        return true;
+    }
+
+    return user.clubs[clubId]?.role === 'club_admin';
+}
+
+/**
+ * Check if user can create events at a specific level.
+ * Local competitions and trainings are open for all logged-in users.
+ * District and national competitions require club admin privileges.
+ */
+export function canCreateEventAtLevel(
+    user: UserWithRoles,
+    level: EventCreationLevel,
+    clubId?: string
+): boolean {
+    if (user.systemRole === 'super_admin') {
+        return true;
+    }
+
+    if (level === 'local' || level === 'training') {
+        return true;
+    }
+
+    if (clubId) {
+        return user.clubs[clubId]?.role === 'club_admin';
+    }
+
+    return hasAnyClubAdminRole(user);
 }
 
 /**
  * Check if user can manage SportIdent for event
  */
 export function canManageTiming(user: UserWithRoles, eventId: string, clubId: string): boolean {
-    if (user.systemRole === 'super_admin') return true;
-    if (user.clubs[clubId]?.role === 'club_admin') return true;
-    return user.eventRoles[eventId]?.role === 'organizer';
+    return isEventAdmin(user, eventId, clubId);
 }

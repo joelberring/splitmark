@@ -1,66 +1,43 @@
 import { NextResponse } from 'next/server';
-import { readFileSync, existsSync } from 'fs';
-import { join } from 'path';
+import {
+    extractEventMetadataFromResultXml,
+    readTextFileIfExists,
+    resolveTestCompetitionFiles,
+} from '@/lib/test-event/files';
 
-// Load the test competition data from testtävling/äns
 export async function GET() {
     try {
-        const testDir = join(process.cwd(), 'data', 'ans');
-
-        // Check if directory exists
-        if (!existsSync(testDir)) {
-            return NextResponse.json({ error: 'Test data directory not found' }, { status: 404 });
-        }
-
-        // Load files
-        const files: Record<string, string | null> = {
-            resultat: null,
-            courseData: null,
-            worldFile: null,
-            meosData: null,
+        const resolved = await resolveTestCompetitionFiles();
+        const data = {
+            resultat: await readTextFileIfExists(resolved.files.resultsXml),
+            courseData: await readTextFileIfExists(resolved.files.courseDataXml),
+            worldFile: await readTextFileIfExists(resolved.files.worldFile),
+            meosData: await readTextFileIfExists(resolved.files.meosXml),
         };
 
-        // Result XML
-        const resultatPath = join(testDir, 'results.xml');
-        if (existsSync(resultatPath)) {
-            files.resultat = readFileSync(resultatPath, 'utf-8');
+        if (!data.resultat && !data.courseData && !data.worldFile && !data.meosData) {
+            return NextResponse.json({ error: 'Test competition files not found' }, { status: 404 });
         }
 
-        // Course data (IOF XML from Purple Pen)
-        const coursePath = join(testDir, 'courses.xml');
-        if (existsSync(coursePath)) {
-            files.courseData = readFileSync(coursePath, 'utf-8');
-        }
-
-        // World file
-        const worldPath = join(testDir, 'worldfile.pgw');
-        if (existsSync(worldPath)) {
-            files.worldFile = readFileSync(worldPath, 'utf-8');
-        }
-
-        // MeOS data
-        const meosPath = join(testDir, 'Kklar inför tävling.meosxml');
-        if (existsSync(meosPath)) {
-            files.meosData = readFileSync(meosPath, 'utf-8');
-        }
-
-        // Map image URL (public path)
-        const mapImagePath = '/api/test-event/map-image';
+        const eventMeta = data.resultat
+            ? extractEventMetadataFromResultXml(data.resultat)
+            : { eventName: 'Test competition', eventDate: new Date().toISOString().slice(0, 10) };
 
         return NextResponse.json({
             success: true,
-            eventName: 'Älvsjö Night Sprint',
-            eventDate: '2025-12-02',
+            eventName: eventMeta.eventName,
+            eventDate: eventMeta.eventDate,
+            baseDirectory: resolved.baseDirectory,
             files: {
-                hasResultat: !!files.resultat,
-                hasCourseData: !!files.courseData,
-                hasWorldFile: !!files.worldFile,
-                hasMeosData: !!files.meosData,
+                hasResultat: !!data.resultat,
+                hasCourseData: !!data.courseData,
+                hasWorldFile: !!data.worldFile,
+                hasMeosData: !!data.meosData,
+                hasMapImage: !!resolved.files.mapImage,
             },
-            data: files,
-            mapImagePath,
+            data,
+            mapImagePath: '/api/test-event/map-image',
         });
-
     } catch (error) {
         console.error('Error loading test event:', error);
         return NextResponse.json({ error: 'Failed to load test event' }, { status: 500 });

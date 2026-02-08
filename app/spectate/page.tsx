@@ -3,13 +3,15 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
+import { useAuthState } from '@/lib/auth/hooks';
+import { getEventAccessProfile } from '@/lib/events/competition';
 
 interface LiveEvent {
     id: string;
     name: string;
     location: string;
     date: string;
-    status: 'live' | 'upcoming' | 'finished';
+    status: 'live' | 'upcoming' | 'completed';
     activeRunners: number;
     totalRunners: number;
     classes: string[];
@@ -18,35 +20,65 @@ interface LiveEvent {
 }
 
 export default function SpectatePage() {
+    const { user } = useAuthState();
     const [events, setEvents] = useState<LiveEvent[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<'live' | 'upcoming'>('live');
 
-
-
     useEffect(() => {
-        // Subscribe to real-time updates
-        import('@/lib/firestore/events').then(({ subscribeToEvents }) => {
-            const unsubscribe = subscribeToEvents((firestoreEvents) => {
-                const mappedEvents: LiveEvent[] = firestoreEvents.map(e => ({
-                    id: e.id,
-                    name: e.name,
-                    location: e.location || 'Okänd plats',
-                    date: e.date,
-                    status: e.status === 'active' ? 'live' : e.status === 'draft' ? 'upcoming' : 'finished',
-                    activeRunners: (e.entries || []).filter(ent => ent.status === 'started').length,
-                    totalRunners: (e.entries || []).length,
-                    classes: e.classes?.map(c => c.name) || [],
-                    organizer: e.organizer || 'Arrangör',
-                }));
-                // Filter out completed/draft events that aren't relevant? 
-                // Currently keeping them but mapping status.
+        let unsubscribe = () => { };
+
+        const init = async () => {
+            const { subscribeToEvents } = await import('@/lib/firestore/events');
+
+            let fallbackClubId: string | undefined;
+            try {
+                const userProfileStored = localStorage.getItem('userProfile');
+                if (userProfileStored) {
+                    const userProfile = JSON.parse(userProfileStored);
+                    fallbackClubId = userProfile?.clubId;
+                }
+            } catch {
+                fallbackClubId = undefined;
+            }
+
+            const accessUser = user ? { ...user, clubId: user.clubId || fallbackClubId } : null;
+
+            unsubscribe = subscribeToEvents((firestoreEvents) => {
+                const mappedEvents = firestoreEvents
+                    .map((event) => {
+                        const access = getEventAccessProfile(event, accessUser);
+                        if (!access.canView) return null;
+
+                        const status = access.status === 'completed' ? 'completed' : access.status;
+                        if (status !== 'live' && status !== 'upcoming' && status !== 'completed') return null;
+
+                        return {
+                            id: event.id,
+                            name: event.name,
+                            location: event.location || 'Okänd plats',
+                            date: event.date,
+                            status,
+                            activeRunners: (event.entries || []).filter(ent => ent.status === 'started').length,
+                            totalRunners: (event.entries || []).length,
+                            classes: event.classes?.map(c => c.name) || [],
+                            organizer: event.organizer || 'Arrangör',
+                        } as LiveEvent;
+                    })
+                    .filter(Boolean) as LiveEvent[];
+
                 setEvents(mappedEvents);
                 setLoading(false);
             });
-            return () => unsubscribe();
+        };
+
+        init().catch((error) => {
+            console.error('Failed to initialize spectate feed:', error);
+            setLoading(false);
         });
-    }, []);
+
+        return () => unsubscribe();
+    }, [user]);
 
     const filteredEvents = events.filter(e =>
         filter === 'live' ? e.status === 'live' : e.status === 'upcoming'

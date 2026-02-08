@@ -4,7 +4,16 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from './hooks';
-import { checkPermission, getHighestRole, canInviteToClub, canCreateEvent, canManageTiming } from './permissions';
+import {
+    checkPermission,
+    getHighestRole,
+    canInviteToClub,
+    canCreateEvent,
+    canManageTiming,
+    isEventAdminRole,
+    isEventAdmin,
+} from './permissions';
+import { registerKnownUserIdentity } from './event-admins';
 import type { UserWithRoles, Action, ResourceType, PermissionResult } from '@/types/roles';
 
 /**
@@ -13,6 +22,12 @@ import type { UserWithRoles, Action, ResourceType, PermissionResult } from '@/ty
  */
 function enrichUserWithRoles(user: any): UserWithRoles | null {
     if (!user) return null;
+
+    registerKnownUserIdentity({
+        id: user.uid,
+        email: user.email || undefined,
+        displayName: user.displayName || undefined,
+    });
 
     // For now, get from localStorage or default
     const storedRoles = typeof window !== 'undefined'
@@ -65,6 +80,11 @@ export function useUserWithRoles(): {
             const devUser = localStorage.getItem('dev-auth-user');
             if (devUser) {
                 const parsed = JSON.parse(devUser);
+                registerKnownUserIdentity({
+                    id: parsed.id,
+                    email: parsed.email || undefined,
+                    displayName: parsed.displayName || undefined,
+                });
                 setFullUser({
                     id: parsed.id,
                     email: parsed.email || '',
@@ -151,16 +171,17 @@ export function useClubPermissions(clubId: string) {
 export function useEventPermissions(eventId: string, clubId: string) {
     const { user, loading } = useUserWithRoles();
 
-    const isOrganizer = user?.eventRoles[eventId]?.role === 'organizer';
+    const isOrganizer = !!user && isEventAdminRole(user.eventRoles[eventId]?.role);
     const isClubAdmin = user?.systemRole === 'super_admin' || user?.clubs[clubId]?.role === 'club_admin';
+    const canEdit = !!user && isEventAdmin(user, eventId, clubId);
 
     return {
         loading,
         isOrganizer,
         isClubAdmin,
-        canEdit: isOrganizer || isClubAdmin,
+        canEdit,
         canManageTiming: user ? canManageTiming(user, eventId, clubId) : false,
-        canUploadResults: isOrganizer || isClubAdmin,
+        canUploadResults: canEdit,
     };
 }
 
@@ -230,9 +251,32 @@ export function useRoleManagement() {
         [user, isSuperAdmin]
     );
 
+    const removeClubRole = useCallback(
+        (targetUserId: string, clubId: string) => {
+            if (!isSuperAdmin && user?.clubs[clubId]?.role !== 'club_admin') {
+                return { success: false, error: 'Ingen behörighet' };
+            }
+
+            const storedRoles = localStorage.getItem(`user-roles-${targetUserId}`);
+            if (!storedRoles) {
+                return { success: true };
+            }
+
+            const parsed = JSON.parse(storedRoles);
+            if (parsed.clubs?.[clubId]) {
+                delete parsed.clubs[clubId];
+                localStorage.setItem(`user-roles-${targetUserId}`, JSON.stringify(parsed));
+            }
+
+            return { success: true };
+        },
+        [user, isSuperAdmin]
+    );
+
     const assignEventRole = useCallback(
         (targetUserId: string, eventId: string, clubId: string) => {
-            if (!isSuperAdmin && user?.clubs[clubId]?.role !== 'club_admin') {
+            const canManageRoles = !!user && isEventAdmin(user, eventId, clubId);
+            if (!isSuperAdmin && !canManageRoles) {
                 return { success: false, error: 'Ingen behörighet' };
             }
 
@@ -240,7 +284,7 @@ export function useRoleManagement() {
             const parsed = storedRoles ? JSON.parse(storedRoles) : { systemRole: 'user', clubs: {}, eventRoles: {} };
 
             parsed.eventRoles[eventId] = {
-                role: 'organizer',
+                role: 'event_admin',
                 assignedBy: user?.id,
                 assignedAt: new Date().toISOString(),
             };
@@ -251,8 +295,49 @@ export function useRoleManagement() {
         [user, isSuperAdmin]
     );
 
+    const removeEventRole = useCallback(
+        (targetUserId: string, eventId: string, clubId: string) => {
+            const canManageRoles = !!user && isEventAdmin(user, eventId, clubId);
+            if (!isSuperAdmin && !canManageRoles) {
+                return { success: false, error: 'Ingen behörighet' };
+            }
+
+            const storedRoles = localStorage.getItem(`user-roles-${targetUserId}`);
+            if (!storedRoles) {
+                return { success: true };
+            }
+
+            const parsed = JSON.parse(storedRoles);
+            if (parsed.eventRoles?.[eventId]) {
+                delete parsed.eventRoles[eventId];
+                localStorage.setItem(`user-roles-${targetUserId}`, JSON.stringify(parsed));
+            }
+
+            return { success: true };
+        },
+        [user, isSuperAdmin]
+    );
+
+    const assignSystemRole = useCallback(
+        (targetUserId: string, systemRole: 'super_admin' | 'user') => {
+            if (!isSuperAdmin) {
+                return { success: false, error: 'Endast superadmin kan ändra systemroller' };
+            }
+
+            const storedRoles = localStorage.getItem(`user-roles-${targetUserId}`);
+            const parsed = storedRoles ? JSON.parse(storedRoles) : { systemRole: 'user', clubs: {}, eventRoles: {} };
+            parsed.systemRole = systemRole;
+            localStorage.setItem(`user-roles-${targetUserId}`, JSON.stringify(parsed));
+            return { success: true };
+        },
+        [isSuperAdmin]
+    );
+
     return {
         assignClubRole,
+        removeClubRole,
         assignEventRole,
+        removeEventRole,
+        assignSystemRole,
     };
 }

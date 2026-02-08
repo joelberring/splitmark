@@ -6,10 +6,6 @@ import { parseIOFResultList, parseIOFCourseData, formatTime, formatTimeDiff } fr
 import { parseWorldFile, latlngToPixel, type WorldFile } from '@/lib/geo/worldfile';
 import type { ImportedResult, ImportedCourse, ImportedControl } from '@/lib/import/iofXmlImport';
 
-const ORIGINAL_WIDTH = 21124;
-const COMPRESSED_WIDTH = 3500;
-const SCALE_FACTOR = ORIGINAL_WIDTH / COMPRESSED_WIDTH;
-
 interface ParsedEvent {
     name: string;
     date: string;
@@ -30,6 +26,7 @@ export default function TestEventPage() {
     const [activeTab, setActiveTab] = useState<'results' | 'splits' | 'map'>('results');
     const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
     const [showAllForks, setShowAllForks] = useState(false);
+    const [mapImagePath, setMapImagePath] = useState('/api/test-event/map-image');
 
     // Zoom/pan state
     const [zoom, setZoom] = useState(1);
@@ -46,6 +43,7 @@ export default function TestEventPage() {
             const res = await fetch('/api/test-event');
             const data = await res.json();
             if (!data.success) { setError(data.error); setLoading(false); return; }
+            setMapImagePath(data.mapImagePath || '/api/test-event/map-image');
 
             if (data.data.resultat) {
                 const parsed = parseIOFResultList(data.data.resultat);
@@ -60,7 +58,7 @@ export default function TestEventPage() {
             }
             if (data.data.worldFile) {
                 const wf = parseWorldFile(data.data.worldFile);
-                setWorldFile({ ...wf, pixelSizeX: wf.pixelSizeX * SCALE_FACTOR, pixelSizeY: wf.pixelSizeY * SCALE_FACTOR });
+                setWorldFile(wf);
             }
             setLoading(false);
         } catch (err) { console.error(err); setError('Failed to load'); setLoading(false); }
@@ -439,7 +437,7 @@ export default function TestEventPage() {
                             >
                                 <img
                                     ref={imgRef}
-                                    src="/test-map.jpg"
+                                    src={mapImagePath}
                                     alt="Karta"
                                     className="w-full h-auto select-none"
                                     draggable={false}

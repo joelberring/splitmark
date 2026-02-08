@@ -1,27 +1,28 @@
 import { NextResponse } from 'next/server';
-import { readFileSync, existsSync, statSync } from 'fs';
-import { join } from 'path';
+import { readFile, stat } from 'fs/promises';
+import { resolveMapImageMimeType, resolveTestCompetitionFiles } from '@/lib/test-event/files';
 
-// Serve the map image from testtävling/äns
 export async function GET() {
     try {
-        const imagePath = join(process.cwd(), 'public', 'test-map.png');
+        const resolved = await resolveTestCompetitionFiles();
+        const imagePath = resolved.files.mapImage;
 
-        if (!existsSync(imagePath)) {
+        if (!imagePath) {
             return NextResponse.json({ error: 'Map image not found' }, { status: 404 });
         }
 
-        const stats = statSync(imagePath);
-        const imageBuffer = readFileSync(imagePath);
+        const [stats, imageBuffer] = await Promise.all([
+            stat(imagePath),
+            readFile(imagePath),
+        ]);
 
         return new NextResponse(new Uint8Array(imageBuffer), {
             headers: {
-                'Content-Type': 'image/png',
+                'Content-Type': resolveMapImageMimeType(imagePath),
                 'Content-Length': stats.size.toString(),
                 'Cache-Control': 'public, max-age=3600',
             },
         });
-
     } catch (error) {
         console.error('Error serving map image:', error);
         return NextResponse.json({ error: 'Failed to serve map image' }, { status: 500 });

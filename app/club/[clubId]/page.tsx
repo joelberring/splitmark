@@ -6,6 +6,7 @@ import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import { useAuthState } from '@/lib/auth/hooks';
 import { useClubPermissions } from '@/lib/auth/usePermissions';
+import { createRoleRequest } from '@/lib/auth/role-requests';
 import {
     getActivities,
     registerForActivity,
@@ -38,7 +39,7 @@ interface ClubResult {
 export default function ClubHomepage() {
     const { clubId } = useParams() as { clubId: string };
     const { user } = useAuthState();
-    const { isClubAdmin } = useClubPermissions(clubId);
+    const { isClubAdmin, isMember } = useClubPermissions(clubId);
 
     const [club, setClub] = useState<Club | null>(null);
     const [results, setResults] = useState<ClubResult[]>([]);
@@ -51,6 +52,8 @@ export default function ClubHomepage() {
     const [isAdminMode, setIsAdminMode] = useState(false);
     const [downloadingMap, setDownloadingMap] = useState(false);
     const [downloadProgress, setDownloadProgress] = useState({ current: 0, total: 0 });
+    const [requestingClubAdmin, setRequestingClubAdmin] = useState(false);
+    const [clubAdminRequestMessage, setClubAdminRequestMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
     useEffect(() => {
         if (clubId) {
@@ -155,6 +158,56 @@ export default function ClubHomepage() {
         }
     };
 
+    const handleRequestClubAdmin = () => {
+        if (!user) {
+            window.location.href = `/login?redirect=${encodeURIComponent(`/club/${clubId}`)}`;
+            return;
+        }
+
+        setRequestingClubAdmin(true);
+        setClubAdminRequestMessage(null);
+
+        const result = createRoleRequest({
+            userId: user.uid,
+            userName: user.displayName || undefined,
+            userEmail: user.email || undefined,
+            requestedRole: 'club_admin',
+            clubId,
+        });
+
+        if (result.status === 'created') {
+            setClubAdminRequestMessage({
+                type: 'success',
+                text: 'Ansökan om klubbadmin är skickad.',
+            });
+        } else if (result.status === 'already_pending') {
+            setClubAdminRequestMessage({
+                type: 'success',
+                text: 'Du har redan en väntande ansökan om klubbadmin.',
+            });
+        } else if (result.status === 'rate_limited') {
+            const nextTime = result.nextAllowedAt
+                ? new Date(result.nextAllowedAt).toLocaleString('sv-SE')
+                : 'senare';
+            setClubAdminRequestMessage({
+                type: 'error',
+                text: `Du kan ansöka igen ${nextTime}.`,
+            });
+        } else if (result.status === 'already_has_role') {
+            setClubAdminRequestMessage({
+                type: 'success',
+                text: 'Du har redan klubbadminbehörighet för klubben.',
+            });
+        } else {
+            setClubAdminRequestMessage({
+                type: 'error',
+                text: 'Kunde inte skicka ansökan.',
+            });
+        }
+
+        setRequestingClubAdmin(false);
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -194,7 +247,26 @@ export default function ClubHomepage() {
                         <div className="text-xl font-black text-white uppercase tracking-tight">{club.shortName || club.name}</div>
                     </div>
                 </div>
+                {!isClubAdmin && isMember && (
+                    <div className="absolute right-4 bottom-3 z-10">
+                        <button
+                            onClick={handleRequestClubAdmin}
+                            disabled={requestingClubAdmin}
+                            className="px-3 py-2 bg-slate-900/90 border border-emerald-700/40 text-emerald-300 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-slate-900 disabled:opacity-50"
+                        >
+                            {requestingClubAdmin ? 'Skickar…' : 'Ansök klubbadmin'}
+                        </button>
+                    </div>
+                )}
             </div>
+            {clubAdminRequestMessage && (
+                <div className={`mx-4 mt-3 rounded-lg px-3 py-2 text-xs ${clubAdminRequestMessage.type === 'success'
+                    ? 'bg-emerald-900/20 border border-emerald-700/40 text-emerald-300'
+                    : 'bg-red-900/20 border border-red-700/40 text-red-300'
+                    }`}>
+                    {clubAdminRequestMessage.text}
+                </div>
+            )}
 
             {/* Tabs */}
             <nav className="flex px-4 border-b border-slate-800 overflow-x-auto no-scrollbar bg-slate-950/80 backdrop-blur-md sticky top-[104px] md:top-[112px] z-30">

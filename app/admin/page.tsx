@@ -5,30 +5,19 @@ import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import { useState, useEffect } from 'react';
 import HelpButton from '@/components/HelpButton';
+import { useUserWithRoles } from '@/lib/auth/usePermissions';
+import { isEventAdmin } from '@/lib/auth/permissions';
+import type { UserWithRoles } from '@/types/roles';
 
 export default function AdminPage() {
-    const { user, loading } = useRequireAuth('/login');
+    const { loading } = useRequireAuth('/login');
+    const { user, highestRole, loading: rolesLoading } = useUserWithRoles();
     const [activeTab, setActiveTab] = useState<'events' | 'timing' | 'results' | 'settings'>('events');
 
-    if (loading) {
+    if (loading || rolesLoading) {
         return (
             <div className="min-h-screen bg-slate-950 flex items-center justify-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
-            </div>
-        );
-    }
-
-    if (user?.role !== 'admin' && user?.role !== 'organizer') {
-        return (
-            <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-                <div className="max-w-md bg-slate-900 border border-slate-800 rounded-xl p-8 text-center">
-                    <div className="text-6xl mb-4 opacity-30">🔒</div>
-                    <h2 className="text-xl font-bold text-white mb-4">Åtkomst Nekad</h2>
-                    <p className="text-slate-400 mb-6">Du behöver vara administratör eller arrangör för att komma åt denna sida.</p>
-                    <Link href="/" className="inline-block px-6 py-3 bg-emerald-600 text-white rounded-lg font-bold uppercase tracking-widest hover:bg-emerald-500 transition-colors">
-                        Tillbaka
-                    </Link>
-                </div>
             </div>
         );
     }
@@ -42,7 +31,7 @@ export default function AdminPage() {
                 backHref="/"
                 rightAction={
                     <div className="px-4 py-2 bg-purple-900/30 text-purple-400 rounded-lg font-bold text-[10px] uppercase tracking-widest border border-purple-800/50">
-                        {user.role === 'admin' ? 'Administratör' : 'Arrangör'}
+                        {highestRole}
                     </div>
                 }
             />
@@ -61,7 +50,7 @@ export default function AdminPage() {
 
             {/* Content */}
             <div className="max-w-7xl mx-auto px-4 py-8">
-                {activeTab === 'events' && <EventsTab />}
+                {activeTab === 'events' && <EventsTab user={user} />}
                 {activeTab === 'timing' && <TimingTab />}
                 {activeTab === 'results' && <ResultsTab />}
                 {activeTab === 'settings' && <SettingsTab />}
@@ -78,12 +67,27 @@ function TabButton({ active, onClick, icon, label }: { active: boolean; onClick:
     );
 }
 
-function EventsTab() {
+function EventsTab({ user }: { user: UserWithRoles | null }) {
     const [events, setEvents] = useState<any[]>([]);
+    const [visibleEvents, setVisibleEvents] = useState<any[]>([]);
+
     useEffect(() => {
         const stored = localStorage.getItem('events');
-        if (stored) setEvents(JSON.parse(stored));
-    }, []);
+        if (!stored) {
+            setEvents([]);
+            setVisibleEvents([]);
+            return;
+        }
+
+        const parsedEvents = JSON.parse(stored);
+        setEvents(parsedEvents);
+
+        const filteredEvents = parsedEvents.filter((event: any) => {
+            if (!user) return false;
+            return isEventAdmin(user, event.id, event.clubId, event.createdBy);
+        });
+        setVisibleEvents(filteredEvents);
+    }, [user]);
 
     return (
         <div className="space-y-6">
@@ -97,9 +101,11 @@ function EventsTab() {
 
             {events.length === 0 ? (
                 <EmptyState icon="📅" title="Inga tävlingar ännu" description="Skapa din första tävling för att komma igång." />
+            ) : visibleEvents.length === 0 ? (
+                <EmptyState icon="🔒" title="Ingen administrativ åtkomst" description="Du är inte admin för någon tävling ännu." />
             ) : (
                 <div className="grid gap-4">
-                    {events.map((event) => (
+                    {visibleEvents.map((event) => (
                         <Link key={event.id} href={`/admin/events/${event.id}`} className="bg-slate-900 border border-slate-800 rounded-xl p-6 hover:border-emerald-500/30 transition-all group">
                             <div className="flex items-center justify-between">
                                 <div>

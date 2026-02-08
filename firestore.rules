@@ -1,86 +1,259 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function hasUserDoc() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function hasUserRolesDoc() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/user_roles/$(request.auth.uid));
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userRolesDoc() {
+      return get(/databases/$(database)/documents/user_roles/$(request.auth.uid));
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        (hasUserRolesDoc() && userRolesDoc().data.systemRole == 'super_admin') ||
+        (hasUserDoc() && userDoc().data.role == 'admin')
+      );
+    }
+
+    function isClubAdmin(clubId) {
+      return isSignedIn() && (
+        isSuperAdmin() ||
+        (
+          hasUserRolesDoc()
+          && userRolesDoc().data.clubs[clubId] != null
+          && userRolesDoc().data.clubs[clubId].role == 'club_admin'
+        ) ||
+        (
+          exists(/databases/$(database)/documents/clubs/$(clubId))
+          && request.auth.uid in get(/databases/$(database)/documents/clubs/$(clubId)).data.admins
+        )
+      );
+    }
+
+    function classificationNeedsClubAdmin(classification) {
+      return classification in ['Regional', 'National', 'regional', 'national', 'district'];
+    }
+
+    function canCreateEvent(eventData) {
+      return isSignedIn() && (
+        isSuperAdmin() ||
+        !classificationNeedsClubAdmin(eventData.classification) ||
+        (
+          eventData.clubId is string
+          && eventData.clubId.size() > 0
+          && isClubAdmin(eventData.clubId)
+        )
+      );
+    }
+
+    function isPublishedEvent(eventData) {
+      return eventData.status in ['upcoming', 'active', 'live', 'completed']
+        && eventData.status != 'draft'
+        && eventData.visibility != 'private';
+    }
+
+    function isEventAdmin(eventData) {
+      return isSignedIn() && (
+        isSuperAdmin() ||
+        eventData.createdBy == request.auth.uid ||
+        (
+          eventData.eventAdminIds is list
+          && request.auth.uid in eventData.eventAdminIds
+        ) ||
+        (
+          eventData.clubId is string
+          && eventData.clubId.size() > 0
+          && isClubAdmin(eventData.clubId)
+        )
+      );
+    }
+
     // Events collection
     match /events/{eventId} {
-      // Anyone can read published events
-      allow read: if resource.data.status == 'active' || resource.data.status == 'completed';
-      
-      // Authenticated users can read all events (including drafts)
-      allow read: if request.auth != null;
-      
-      // Authenticated users can create events
-      allow create: if request.auth != null;
-      
-      // Event creators/admins can update/delete
-      allow update, delete: if request.auth != null && 
-        (resource.data.createdBy == request.auth.uid || 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      allow read: if isPublishedEvent(resource.data) || isSignedIn();
+
+      allow create: if canCreateEvent(request.resource.data)
+        && request.resource.data.createdBy == request.auth.uid;
+
+      allow update, delete: if isEventAdmin(resource.data);
     }
-    
-    // Users collection
-    match /users/{userId} {
-      // Users can read their own profile
-      allow read: if request.auth != null && request.auth.uid == userId;
-      
-      // Users can update their own profile
-      allow write: if request.auth != null && request.auth.uid == userId;
-      
-      // Admins can read all users
-      allow read: if request.auth != null && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-    
-    // Clubs collection
-    match /clubs/{clubId} {
-      // Anyone can read clubs
-      allow read: if true;
-      
-      // Only authenticated users can create clubs
-      allow create: if request.auth != null;
-      
-      // Club admins can update
-      allow update, delete: if request.auth != null &&
-        resource.data.admins.hasAny([request.auth.uid]);
-    }
-    
+
     // Entries subcollection (under events)
     match /events/{eventId}/entries/{entryId} {
-      // Same rules as parent event
-      allow read: if get(/databases/$(database)/documents/events/$(eventId)).data.status == 'active';
-      allow read, write: if request.auth != null;
+      allow read: if isPublishedEvent(get(/databases/$(database)/documents/events/$(eventId)).data)
+        || isSignedIn();
+
+      allow create: if isSignedIn() && (
+        isEventAdmin(get(/databases/$(database)/documents/events/$(eventId)).data) ||
+        request.resource.data.userId == request.auth.uid
+      );
+
+      allow update, delete: if isSignedIn() && (
+        isEventAdmin(get(/databases/$(database)/documents/events/$(eventId)).data) ||
+        resource.data.userId == request.auth.uid
+      );
     }
-    
+
     // Results subcollection
     match /events/{eventId}/results/{resultId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isEventAdmin(get(/databases/$(database)/documents/events/$(eventId)).data);
+    }
+
+    // Training sessions subcollection
+    match /events/{eventId}/trainingSessions/{sessionId} {
+      allow read: if isPublishedEvent(get(/databases/$(database)/documents/events/$(eventId)).data)
+        || isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+
+      allow update, delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isEventAdmin(get(/databases/$(database)/documents/events/$(eventId)).data)
+      );
+    }
+
+    // Radio controls subcollection (device heartbeat and battery status)
+    match /events/{eventId}/radioControls/{deviceId} {
+      allow read: if isPublishedEvent(get(/databases/$(database)/documents/events/$(eventId)).data)
+        || isSignedIn();
+
+      allow create, update, delete: if isSignedIn()
+        && isEventAdmin(get(/databases/$(database)/documents/events/$(eventId)).data);
+    }
+
+    // Radio passages subcollection (intermediate control punches)
+    match /events/{eventId}/radioPassages/{passageId} {
+      allow read: if isPublishedEvent(get(/databases/$(database)/documents/events/$(eventId)).data)
+        || isSignedIn();
+
+      allow create, update, delete: if isSignedIn()
+        && isEventAdmin(get(/databases/$(database)/documents/events/$(eventId)).data);
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow delete: if isSuperAdmin();
+    }
+
+    // User roles collection (RBAC document per user)
+    match /user_roles/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    // Clubs collection
+    match /clubs/{clubId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isClubAdmin(clubId);
+    }
+
+    // Club membership requests (approval flow)
+    match /clubs/{clubId}/membership_requests/{userId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == userId ||
+        isClubAdmin(clubId)
+      );
+
+      // User can create or renew only their own request
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.clubId == clubId;
+
+      // Club admin/super admin processes status updates
+      allow update, delete: if isSignedIn() && isClubAdmin(clubId);
+    }
+
+    // Club membership blocklist
+    match /clubs/{clubId}/membership_blocks/{userId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == userId ||
+        isClubAdmin(clubId)
+      );
+      allow create, update, delete: if isSignedIn() && isClubAdmin(clubId);
     }
 
     // Tracks collection
     match /tracks/{trackId} {
-      // Owner can do everything
-      allow read, write: if request.auth != null && (resource == null || resource.data.userId == request.auth.uid || request.auth.uid == request.resource.data.userId);
-      
-      // Public read if track is linked to a public/active event
-      allow read: if resource.data.eventId != null && 
-        get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.status in ['active', 'completed'];
+      allow read: if resource.data.eventId != null
+        && isPublishedEvent(get(/databases/$(database)/documents/events/$(resource.data.eventId)).data);
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+
+      allow update, delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        (
+          resource.data.eventId != null
+          && isEventAdmin(get(/databases/$(database)/documents/events/$(resource.data.eventId)).data)
+        )
+      );
     }
 
     // Club Activities
     match /club_activities/{activityId} {
-      allow read: if true; // Or restrict to club members
-      allow write: if request.auth != null; // Ideally check for club admin role
+      allow read: if true;
+      allow create, update: if isSignedIn() && (
+        isSuperAdmin() ||
+        (
+          request.resource.data.clubId is string
+          && isClubAdmin(request.resource.data.clubId)
+        )
+      );
+      allow delete: if isSignedIn() && (
+        isSuperAdmin() ||
+        (
+          resource.data.clubId is string
+          && isClubAdmin(resource.data.clubId)
+        )
+      );
     }
 
     // Activity Registrations
     match /activity_registrations/{regId} {
       allow read: if true;
-      allow write: if request.auth != null && (
-        request.resource.data.userId == request.auth.uid || // Self-registration
-        request.auth.uid == resource.data.userId || // Self-update
-        true // Ideally check for club admin role for attendance marking
+      allow create: if isSignedIn() && (
+        request.resource.data.userId == request.auth.uid ||
+        (
+          request.resource.data.clubId is string
+          && isClubAdmin(request.resource.data.clubId)
+        )
+      );
+      allow update: if isSignedIn() && (
+        request.resource.data.userId == request.auth.uid ||
+        (
+          request.resource.data.clubId is string
+          && isClubAdmin(request.resource.data.clubId)
+        )
+      );
+      allow delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        (
+          resource.data.clubId is string
+          && isClubAdmin(resource.data.clubId)
+        )
       );
     }
   }

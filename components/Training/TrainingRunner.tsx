@@ -14,10 +14,32 @@ import { gpsTracker } from '@/lib/gps/tracker';
 import { calculateDistance, calculateBearing } from '@/lib/gps/virtual-punch';
 import VirtualPunchNotification, { PunchBadge } from './VirtualPunchNotification';
 
+interface TrainingMapControl {
+    id: string;
+    code: string;
+    type: 'start' | 'control' | 'finish';
+    order: number;
+    relX?: number;
+    relY?: number;
+}
+
+type SessionStopReason = 'finish' | 'manual_stop' | 'abort';
+
+interface SessionSummary {
+    result: 'ok' | 'mp' | 'dnf';
+    missingControls: string[];
+}
+
 interface TrainingRunnerProps {
     eventId: string;
     eventName: string;
+    courseId?: string;
+    userId?: string;
     controls: VirtualControl[];
+    mapImageUrl?: string;
+    mapControls?: TrainingMapControl[];
+    showMobileMap?: boolean;
+    hideRunnerDot?: boolean;
     onSessionComplete?: (session: VirtualTrainingSession) => void;
 }
 
@@ -27,7 +49,13 @@ interface TrainingRunnerProps {
 export default function TrainingRunner({
     eventId,
     eventName,
+    courseId = '',
+    userId = '',
     controls,
+    mapImageUrl,
+    mapControls = [],
+    showMobileMap = false,
+    hideRunnerDot = true,
     onSessionComplete,
 }: TrainingRunnerProps) {
     const router = useRouter();
@@ -48,17 +76,27 @@ export default function TrainingRunner({
     const [nextControl, setNextControl] = useState<VirtualControl | null>(null);
     const [distanceToNext, setDistanceToNext] = useState<number | null>(null);
     const [bearingToNext, setBearingToNext] = useState<number | null>(null);
+    const [mapVisible, setMapVisible] = useState(showMobileMap);
+    const [sessionSummary, setSessionSummary] = useState<SessionSummary | null>(null);
 
     // Refs
     const cleanupRef = useRef<(() => void) | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const stoppingRef = useRef(false);
+    const sessionCompletedRef = useRef(false);
+    const trackRef = useRef<GPSPoint[]>([]);
+    const punchesRef = useRef<VirtualPunch[]>([]);
+    const startTimeRef = useRef<Date | null>(null);
 
     // Initialize GPS tracking
     useEffect(() => {
         return () => {
-            // Cleanup on unmount
             cleanupRef.current?.();
+            cleanupRef.current = null;
             if (timerRef.current) clearInterval(timerRef.current);
+            if (gpsTracker.isRecording()) {
+                void gpsTracker.stopTracking();
+            }
             gpsTracker.disableVirtualPunching();
         };
     }, []);
@@ -102,30 +140,110 @@ export default function TrainingRunner({
         setBearingToNext(bear);
     }, [currentPosition, nextControl]);
 
+    useEffect(() => {
+        setMapVisible(showMobileMap);
+    }, [showMobileMap]);
+
+    const handleStop = useCallback(async (reason: SessionStopReason = 'manual_stop') => {
+        if (stoppingRef.current) return;
+        stoppingRef.current = true;
+
+        const finishTime = new Date();
+        const detector = gpsTracker.getPunchDetector();
+        const detectorPunches = detector?.getPunches() || punchesRef.current;
+        const validation = detector?.validatePunches();
+        const expectedControls = controls
+            .filter((control) => control.type === 'control' || control.type === 'finish')
+            .map((control) => control.code);
+
+        let result: SessionSummary['result'] = 'dnf';
+        if (reason === 'finish') {
+            result = validation?.valid ? 'ok' : 'mp';
+        } else if (reason === 'manual_stop') {
+            result = validation?.valid ? 'ok' : 'dnf';
+        }
+
+        const summary: SessionSummary = {
+            result,
+            missingControls: validation?.missing || [],
+        };
+
+        setSessionSummary(summary);
+        setPunches(detectorPunches);
+        punchesRef.current = detectorPunches;
+        setStatus('finished');
+
+        if (startTimeRef.current) {
+            setElapsedTime(
+                Math.max(0, Math.floor((finishTime.getTime() - startTimeRef.current.getTime()) / 1000))
+            );
+        }
+
+        cleanupRef.current?.();
+        cleanupRef.current = null;
+        gpsTracker.disableVirtualPunching();
+        await gpsTracker.stopTracking();
+
+        if (onSessionComplete && !sessionCompletedRef.current) {
+            const session: VirtualTrainingSession = {
+                id: crypto.randomUUID(),
+                eventId,
+                courseId,
+                userId,
+                status: 'finished',
+                startTime: startTimeRef.current || finishTime,
+                finishTime,
+                punches: detectorPunches,
+                expectedControls,
+                track: trackRef.current,
+                result,
+                missingControls: summary.missingControls,
+                createdAt: finishTime,
+                updatedAt: finishTime,
+            };
+            sessionCompletedRef.current = true;
+            onSessionComplete(session);
+        }
+
+        stoppingRef.current = false;
+    }, [controls, courseId, eventId, onSessionComplete, userId]);
+
     // Handle punch
     const handlePunch = useCallback((punch: VirtualPunch, control: VirtualControl) => {
-        setPunches((prev) => [...prev, punch]);
+        setPunches((previous) => {
+            const nextPunches = [...previous, punch];
+            punchesRef.current = nextPunches;
+            return nextPunches;
+        });
         setLastPunch({ punch, control });
 
-        // Update next control
         const detector = gpsTracker.getPunchDetector();
         if (detector) {
             setNextControl(detector.getNextControl());
-
-            // Check if finished
-            if (control.type === 'finish') {
-                setStatus('finished');
-            }
         }
-    }, []);
+
+        if (control.type === 'finish') {
+            void handleStop('finish');
+        }
+    }, [handleStop]);
 
     // Start session
     const handleStart = async () => {
+        if (controls.length === 0) {
+            alert('Banan saknar kontroller.');
+            return;
+        }
+
         try {
-            // Start GPS tracking
+            setSessionSummary(null);
+            sessionCompletedRef.current = false;
+            punchesRef.current = [];
+            trackRef.current = [];
+            setPunches([]);
+            setTrack([]);
+
             await gpsTracker.startTracking(`Träning ${eventName}`, eventId);
 
-            // Enable virtual punching
             gpsTracker.enableVirtualPunching(controls, {
                 onPunch: handlePunch,
                 onApproaching: (control, distance) => {
@@ -136,54 +254,27 @@ export default function TrainingRunner({
                 },
             });
 
-            // Register position callback
             cleanupRef.current = gpsTracker.onPositionUpdate((point) => {
                 setCurrentPosition(point);
                 setAccuracy(point.accuracy || 0);
-                setTrack((prev) => [...prev, point]);
+                setTrack((previous) => {
+                    const nextTrack = [...previous, point];
+                    trackRef.current = nextTrack;
+                    return nextTrack;
+                });
             });
 
-            // Find first control (start)
             const detector = gpsTracker.getPunchDetector();
             setNextControl(detector?.getNextControl() || null);
 
-            setStartTime(new Date());
+            const now = new Date();
+            setStartTime(now);
+            startTimeRef.current = now;
+            setElapsedTime(0);
             setStatus('running');
         } catch (error) {
             console.error('Failed to start tracking:', error);
             alert('Kunde inte starta GPS-spårning. Ge appen tillgång till din position.');
-        }
-    };
-
-    // Stop session
-    const handleStop = async () => {
-        cleanupRef.current?.();
-        gpsTracker.disableVirtualPunching();
-        await gpsTracker.stopTracking();
-        setStatus('finished');
-
-        // Create session summary
-        if (onSessionComplete) {
-            const detector = gpsTracker.getPunchDetector();
-            const validation = detector?.validatePunches();
-
-            const session: VirtualTrainingSession = {
-                id: crypto.randomUUID(),
-                eventId,
-                courseId: '', // Would come from props
-                userId: '', // Would come from auth
-                status: 'finished',
-                startTime: startTime || new Date(),
-                finishTime: new Date(),
-                punches,
-                expectedControls: controls.map((c) => c.code),
-                track,
-                result: validation?.valid ? 'ok' : 'mp',
-                missingControls: validation?.missing,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            };
-            onSessionComplete(session);
         }
     };
 
@@ -213,15 +304,29 @@ export default function TrainingRunner({
         }
     };
 
+    const overlayControls = mapControls
+        .filter((control) =>
+            typeof control.relX === 'number'
+            && Number.isFinite(control.relX)
+            && typeof control.relY === 'number'
+            && Number.isFinite(control.relY)
+        )
+        .sort((left, right) => left.order - right.order);
+
+    const showMapPanel = status === 'running'
+        && mapVisible
+        && !!mapImageUrl
+        && overlayControls.length > 0;
+
     return (
         <div className="fixed inset-0 bg-gray-900 text-white flex flex-col">
             {/* Header */}
             <header className="bg-gray-800 px-4 py-3 flex items-center justify-between shrink-0">
                 <button
-                    onClick={() => {
+                    onClick={async () => {
                         if (status === 'running') {
                             if (confirm('Vill du avbryta träningen?')) {
-                                handleStop();
+                                await handleStop('abort');
                                 router.back();
                             }
                         } else {
@@ -233,9 +338,19 @@ export default function TrainingRunner({
                     ← Avbryt
                 </button>
                 <h1 className="text-lg font-bold truncate mx-4">{eventName}</h1>
-                <div className={`flex items-center gap-2 ${getAccuracyColor()}`}>
-                    <span className="w-2 h-2 rounded-full bg-current animate-pulse" />
-                    <span className="text-sm">±{accuracy.toFixed(0)}m</span>
+                <div className="flex items-center gap-2">
+                    {showMobileMap && mapImageUrl && (
+                        <button
+                            onClick={() => setMapVisible((previous) => !previous)}
+                            className="px-2 py-1 bg-gray-700 rounded text-[10px] uppercase tracking-widest font-bold hover:bg-gray-600"
+                        >
+                            {mapVisible ? 'Dölj karta' : 'Visa karta'}
+                        </button>
+                    )}
+                    <div className={`flex items-center gap-2 ${getAccuracyColor()}`}>
+                        <span className="w-2 h-2 rounded-full bg-current animate-pulse" />
+                        <span className="text-sm">±{accuracy.toFixed(0)}m</span>
+                    </div>
                 </div>
             </header>
 
@@ -295,6 +410,75 @@ export default function TrainingRunner({
                             )}
                         </div>
 
+                        {showMapPanel && mapImageUrl && (
+                            <div className="border-b border-gray-700 bg-gray-900">
+                                <div className="px-4 py-2 text-[10px] uppercase tracking-widest font-bold text-gray-400 flex items-center justify-between">
+                                    <span>Kartläge</span>
+                                    <span>{hideRunnerDot ? 'Egen GPS-punkt dold' : 'Egen GPS-punkt tillåten'}</span>
+                                </div>
+                                <div className="relative">
+                                    <img
+                                        src={mapImageUrl}
+                                        alt="Orienteringskarta"
+                                        className="w-full h-auto max-h-[42vh] object-contain bg-black/30"
+                                    />
+                                    <svg className="absolute inset-0 pointer-events-none" style={{ width: '100%', height: '100%' }}>
+                                        {overlayControls.length > 1 && (
+                                            <polyline
+                                                points={overlayControls.map((control) => `${(control.relX ?? 0) * 100}%,${(control.relY ?? 0) * 100}%`).join(' ')}
+                                                stroke="#d926a9"
+                                                strokeWidth={2.5}
+                                                fill="none"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeOpacity={0.85}
+                                            />
+                                        )}
+                                        {overlayControls.map((control, index) => {
+                                            const x = `${(control.relX ?? 0) * 100}%`;
+                                            const y = `${(control.relY ?? 0) * 100}%`;
+                                            const isStart = control.type === 'start';
+                                            const isFinish = control.type === 'finish';
+
+                                            return (
+                                                <g key={`${control.id}-${index}`}>
+                                                    {isStart ? (
+                                                        <polygon
+                                                            points={`${(control.relX ?? 0) * 100}%,${(control.relY ?? 0) * 100 - 2}% ${(control.relX ?? 0) * 100 - 1.4}%,${(control.relY ?? 0) * 100 + 1}% ${(control.relX ?? 0) * 100 + 1.4}%,${(control.relY ?? 0) * 100 + 1}%`}
+                                                            stroke="#d926a9"
+                                                            strokeWidth={2}
+                                                            fill="none"
+                                                        />
+                                                    ) : isFinish ? (
+                                                        <>
+                                                            <circle cx={x} cy={y} r={12} stroke="#d926a9" strokeWidth={2.5} fill="none" />
+                                                            <circle cx={x} cy={y} r={8} stroke="#d926a9" strokeWidth={2.5} fill="none" />
+                                                        </>
+                                                    ) : (
+                                                        <circle cx={x} cy={y} r={10} stroke="#d926a9" strokeWidth={2.5} fill="none" />
+                                                    )}
+                                                    <text
+                                                        x={x}
+                                                        y={y}
+                                                        dx={12}
+                                                        dy={-10}
+                                                        fill="#ffffff"
+                                                        stroke="#000000"
+                                                        strokeWidth={3}
+                                                        paintOrder="stroke"
+                                                        fontSize={12}
+                                                        fontWeight="bold"
+                                                    >
+                                                        {isStart ? 'S' : isFinish ? 'M' : control.code}
+                                                    </text>
+                                                </g>
+                                            );
+                                        })}
+                                    </svg>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Timer */}
                         <div className="bg-gray-850 py-6 text-center border-b border-gray-700">
                             <div className="text-4xl font-mono font-bold">
@@ -332,7 +516,7 @@ export default function TrainingRunner({
                         {/* Stop button */}
                         <div className="p-4 border-t border-gray-700">
                             <button
-                                onClick={handleStop}
+                                onClick={() => void handleStop('manual_stop')}
                                 className="w-full py-4 bg-red-600 rounded-xl font-bold text-lg hover:bg-red-700 transition-colors"
                             >
                                 ⏹ Avsluta träning
@@ -352,6 +536,24 @@ export default function TrainingRunner({
                         <div className="text-gray-400 mb-8">
                             {punches.length} av {controls.length} kontroller
                         </div>
+                        {sessionSummary && (
+                            <div className="mb-6 text-center">
+                                <div className={`inline-flex px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border ${
+                                    sessionSummary.result === 'ok'
+                                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                        : sessionSummary.result === 'mp'
+                                            ? 'bg-orange-500/20 text-orange-300 border-orange-500/40'
+                                            : 'bg-red-500/20 text-red-300 border-red-500/40'
+                                }`}>
+                                    Resultat: {sessionSummary.result.toUpperCase()}
+                                </div>
+                                {sessionSummary.missingControls.length > 0 && (
+                                    <p className="text-sm text-orange-300 mt-2">
+                                        Saknade kontroller: {sessionSummary.missingControls.join(', ')}
+                                    </p>
+                                )}
+                            </div>
+                        )}
 
                         {/* Punch summary */}
                         <div className="w-full max-w-sm bg-gray-800 rounded-xl p-4 mb-6">

@@ -15,16 +15,24 @@ import type { Entry, EntryWithResult } from '@/types/entry';
 import { getEvent } from '@/lib/firestore/events';
 import { subscribeToEntries } from '@/lib/firestore/entries';
 import { subscribeToResults } from '@/lib/firestore/results';
+import { useAuthState } from '@/lib/auth/hooks';
+import { getEventAccessProfile } from '@/lib/events/competition';
+import {
+    getCourseControls,
+    normalizePlanningControls,
+    normalizePlanningCourses,
+} from '@/lib/events/course-planning';
 
 export default function EventDetailsPage() {
     const params = useParams();
     const eventId = params.id as string;
+    const { user } = useAuthState();
 
     const [event, setEvent] = useState<StoredEvent | null>(null);
     const [entries, setEntries] = useState<Entry[]>([]);
     const [results, setResults] = useState<EntryWithResult[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'info' | 'classes' | 'entries' | 'results' | 'map' | 'chat'>('info');
+    const [activeTab, setActiveTab] = useState<'info' | 'classes' | 'entries' | 'results' | 'map' | 'training' | 'chat'>('info');
     const [showRegisterModal, setShowRegisterModal] = useState(false);
 
     useEffect(() => {
@@ -85,13 +93,16 @@ export default function EventDetailsPage() {
         );
     }
 
-    const isCompleted = event.status === 'completed';
+    const eventAccess = getEventAccessProfile(event, user);
+    const isCompleted = eventAccess.status === 'completed';
     const isPastDate = event.date && new Date(event.date) < new Date();
     const hasEntriesCount = entries.length > 0;
     const hasResultsCount = results.length > 0;
-    const showResults = (isCompleted || isPastDate) || hasResultsCount;
-    const canRegister = !isCompleted && !isPastDate;
+    const showResults = eventAccess.canViewResults || isPastDate || hasResultsCount;
+    const canRegister = eventAccess.canRegister;
+    const canRequestRegistration = eventAccess.status === 'upcoming';
     const hasMap = event.map && event.map.imageUrl;
+    const hasTrainingCourses = normalizePlanningCourses((event as any).ppenCourses).length > 0;
 
     return (
         <div className="min-h-screen bg-slate-950 text-white">
@@ -146,12 +157,18 @@ export default function EventDetailsPage() {
                                 Avslutad
                             </span>
                         )}
-                        {canRegister && (
+                        {canRequestRegistration && (
                             <button
-                                onClick={() => setShowRegisterModal(true)}
+                                onClick={() => {
+                                    if (!user) {
+                                        window.location.href = `/login?redirect=/events/${event.id}`;
+                                        return;
+                                    }
+                                    setShowRegisterModal(true);
+                                }}
                                 className="px-6 py-2.5 bg-emerald-600 text-white rounded font-black shadow-lg shadow-emerald-900/20 hover:bg-emerald-500 transition-all active:scale-95 uppercase tracking-widest text-xs"
                             >
-                                Anmäl
+                                {canRegister ? 'Anmäl' : 'Logga in för anmälan'}
                             </button>
                         )}
                     </div>
@@ -215,6 +232,13 @@ export default function EventDetailsPage() {
                                 label="Karta"
                             />
                         )}
+                        {hasTrainingCourses && (
+                            <TabButton
+                                active={activeTab === 'training'}
+                                onClick={() => setActiveTab('training')}
+                                label="Träning"
+                            />
+                        )}
                         <TabButton
                             active={activeTab === 'chat'}
                             onClick={() => setActiveTab('chat')}
@@ -237,23 +261,33 @@ export default function EventDetailsPage() {
                 {activeTab === 'entries' && <EntriesTab event={event} entries={entries} />}
                 {activeTab === 'results' && <ResultsTab event={event} results={results} />}
                 {activeTab === 'map' && hasMap && <MapTab event={event} />}
+                {activeTab === 'training' && hasTrainingCourses && <TrainingTab event={event} />}
                 {activeTab === 'chat' && (
-                    <div className="grid md:grid-cols-2 gap-8">
-                        <div className="bg-slate-900 border border-slate-800 rounded-lg shadow-sm overflow-hidden h-[600px]">
-                            <Chat
-                                roomId={`event-${eventId}`}
-                                roomName={event.name}
-                                roomType="event"
-                            />
+                    eventAccess.canUseSocialFeatures ? (
+                        <div className="grid md:grid-cols-2 gap-8">
+                            <div className="bg-slate-900 border border-slate-800 rounded-lg shadow-sm overflow-hidden h-[600px]">
+                                <Chat
+                                    roomId={`event-${eventId}`}
+                                    roomName={event.name}
+                                    roomType="event"
+                                />
+                            </div>
+                            <div className="bg-slate-900 border border-slate-800 rounded-lg shadow-sm p-6">
+                                <Comments
+                                    resourceType="event"
+                                    resourceId={eventId}
+                                    showQA
+                                />
+                            </div>
                         </div>
-                        <div className="bg-slate-900 border border-slate-800 rounded-lg shadow-sm p-6">
-                            <Comments
-                                resourceType="event"
-                                resourceId={eventId}
-                                showQA
-                            />
+                    ) : (
+                        <div className="bg-slate-900 border border-slate-800 rounded-lg p-8 text-center">
+                            <p className="text-slate-300 font-bold">Logga in för att använda chat och kommentarer.</p>
+                            <a href={`/login?redirect=/events/${event.id}`} className="inline-block mt-4 text-emerald-400 font-bold hover:underline">
+                                Till inloggning
+                            </a>
                         </div>
-                    </div>
+                    )
                 )}
             </div>
 
@@ -542,6 +576,32 @@ function MapTab({ event }: { event: StoredEvent }) {
     }
 
     const selectedCourse = getEnrichedCourse(courses.find((c: any) => c.id === selectedCourseId));
+    const visibility = (event.map as any)?.visibility || {};
+    const visibilityMode = visibility.mode || 'always';
+    const releaseAtDate = visibility.releaseAt ? new Date(visibility.releaseAt) : null;
+    const hideAtDate = visibility.hideAt ? new Date(visibility.hideAt) : null;
+    const now = new Date();
+
+    let mapIsVisible = true;
+    let mapVisibilityMessage = '';
+
+    if (visibilityMode === 'hidden') {
+        mapIsVisible = false;
+        mapVisibilityMessage = 'Arrangören har dolt orienteringskartan.';
+    } else if (visibilityMode === 'scheduled') {
+        if (releaseAtDate && now < releaseAtDate) {
+            mapIsVisible = false;
+            mapVisibilityMessage = `Kartan visas ${releaseAtDate.toLocaleString('sv-SE')}.`;
+        } else if (hideAtDate && now >= hideAtDate) {
+            mapIsVisible = false;
+            mapVisibilityMessage = `Kartan stängdes ${hideAtDate.toLocaleString('sv-SE')}.`;
+        }
+    }
+
+    const fallbackBaseMap = visibility.fallbackBaseMap || 'osm';
+    const osmFallbackUrl = event.location
+        ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(event.location)}`
+        : 'https://www.openstreetmap.org';
 
     return (
         <div className="space-y-8">
@@ -594,16 +654,34 @@ function MapTab({ event }: { event: StoredEvent }) {
                 </div>
 
                 {/* Interactive Map with Zoom/Pan and Course Overlay */}
-                <div className="relative">
-                    <ZoomableMap
-                        imageUrl={event.map.imageUrl}
-                        bounds={event.map.bounds}
-                        course={selectedCourse}
-                        calibration={(event as any).calibration}
-                        calibrationAnchors={(event as any).calibrationAnchors}
-                        className="rounded-b-lg"
-                    />
-                </div>
+                {mapIsVisible ? (
+                    <div className="relative">
+                        <ZoomableMap
+                            imageUrl={event.map.imageUrl}
+                            bounds={event.map.bounds}
+                            course={selectedCourse}
+                            calibration={(event as any).calibration}
+                            calibrationAnchors={(event as any).calibrationAnchors}
+                            className="rounded-b-lg"
+                        />
+                    </div>
+                ) : (
+                    <div className="p-8 text-center bg-slate-950">
+                        <div className="text-5xl opacity-20 mb-4">🔒</div>
+                        <p className="text-white font-bold mb-2">Kartan är tillfälligt dold</p>
+                        <p className="text-sm text-slate-400 mb-4">{mapVisibilityMessage || 'Kartan är inte tillgänglig just nu.'}</p>
+                        {fallbackBaseMap === 'osm' && (
+                            <a
+                                href={osmFallbackUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-blue-500"
+                            >
+                                Öppna OpenStreetMap
+                            </a>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Course Details */}
@@ -640,6 +718,85 @@ function MapTab({ event }: { event: StoredEvent }) {
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+function TrainingTab({ event }: { event: StoredEvent }) {
+    const courses = normalizePlanningCourses((event as any).ppenCourses);
+    const controls = normalizePlanningControls((event as any).ppenControls);
+
+    if (courses.length === 0) {
+        return (
+            <div className="bg-slate-900 border border-slate-800 rounded-lg shadow-sm p-10 text-center">
+                <p className="text-slate-500 text-sm uppercase tracking-widest font-bold">
+                    Inga träningsbanor publicerade.
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
+                <h2 className="text-lg font-bold text-white uppercase tracking-wide mb-3">
+                    GPS-träning & Utskrift
+                </h2>
+                <p className="text-sm text-slate-300 leading-relaxed mb-4">
+                    Kör banan i mobilen med GPS-stämpling och ljudsignal vid kontroller, eller öppna en utskriftsvänlig version för PDF.
+                </p>
+                <div className="flex gap-3 flex-wrap">
+                    <a
+                        href={`/events/${event.id}/training`}
+                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-emerald-500"
+                    >
+                        Starta träningsläge
+                    </a>
+                    <a
+                        href={`/events/${event.id}/print`}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-indigo-500"
+                    >
+                        Utskrift / PDF
+                    </a>
+                </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {courses.map((course) => {
+                    const courseControls = getCourseControls(course, controls);
+                    const hasGpsCoverage = courseControls.every((control) =>
+                        typeof control.lat === 'number'
+                        && Number.isFinite(control.lat)
+                        && typeof control.lng === 'number'
+                        && Number.isFinite(control.lng)
+                    );
+
+                    return (
+                        <div key={course.id} className="bg-slate-900 border border-slate-800 rounded-lg p-5">
+                            <h3 className="font-bold text-white text-lg">{course.name}</h3>
+                            <div className="mt-3 text-xs text-slate-400 space-y-1 uppercase tracking-widest font-bold">
+                                <p>{courseControls.length} kontroller</p>
+                                <p>{course.gpsMode.enabled ? 'GPS-läge aktivt' : 'GPS-läge avstängt'}</p>
+                                <p>{hasGpsCoverage ? 'GPS-koordinater kompletta' : 'Saknar vissa GPS-koordinater'}</p>
+                            </div>
+                            <div className="flex gap-2 mt-4">
+                                <a
+                                    href={`/events/${event.id}/training?course=${course.id}`}
+                                    className="flex-1 px-3 py-2 bg-emerald-700 text-white rounded text-[10px] font-bold uppercase tracking-widest text-center hover:bg-emerald-600"
+                                >
+                                    Mobil
+                                </a>
+                                <a
+                                    href={`/events/${event.id}/print?course=${course.id}`}
+                                    className="flex-1 px-3 py-2 bg-indigo-700 text-white rounded text-[10px] font-bold uppercase tracking-widest text-center hover:bg-indigo-600"
+                                >
+                                    PDF
+                                </a>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 }

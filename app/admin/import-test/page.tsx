@@ -103,14 +103,29 @@ export default function ImportTestDataPage() {
                 console.log('Purple Pen data not available, continuing without control positions');
             }
 
+            const mapImportData = mapData ? {
+                mapImageUrl: '/api/test-data/map',
+                bounds: mapData.bounds,
+                imageWidth: mapData.imageWidth,
+                imageHeight: mapData.imageHeight,
+                georeferenced: mapData.georeferenced ?? false,
+                manualCalibrationRequired: mapData.manualCalibrationRequired ?? !mapData.georeferenced,
+            } : {
+                mapImageUrl: '/api/test-data/map',
+                georeferenced: false,
+                manualCalibrationRequired: true,
+            };
+
             // Import to Firestore with map data
             setMessage('Sparar till Cloud/Firestore...');
-            const eventId = await importParsedEventToFirestore(parsedEvent);
-            // TODO: Handle mapData specifically in firestore-import if needed
+            const eventId = await importParsedEventToFirestore(parsedEvent, { mapData: mapImportData });
             setImportedEventId(eventId);
 
             setStatus('success');
-            setMessage(`Importerade "${parsedEvent.name}" med ${parsedEvent.results.length} resultat${mapData ? ' och karta!' : '!'}`);
+            setMessage(
+                `Importerade "${parsedEvent.name}" med ${parsedEvent.results.length} resultat` +
+                `${mapImportData.georeferenced ? ' och georefererad karta!' : ' och karta (manuell passning möjlig)!'}`
+            );
 
         } catch (error) {
             console.error('Import error:', error);
@@ -133,7 +148,7 @@ export default function ImportTestDataPage() {
                         Testdata (Älvsjö Night Sprint)
                     </h2>
                     <p className="text-slate-400 font-medium mb-8">
-                        Klicka på knappen nedan för att ladda in den fördefinierade testtävlingen (XML-filer i /public/test-tävling).
+                        Klicka på knappen nedan för att ladda in testtävlingen från mappen <code>testtävling</code>.
                     </p>
                     <ul className="text-xs font-black uppercase tracking-widest text-slate-500 space-y-2 mb-8">
                         <li>• Inkluderar resultat (IOF XML 3.0)</li>

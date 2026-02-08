@@ -6,6 +6,12 @@ import Link from 'next/link';
 import type { Club } from '@/types/roles';
 import { forceSeedDemoEvents } from '@/lib/demo-data';
 import { isFirebaseConfigured } from '@/lib/firebase';
+import { getKnownRoleUsers } from '@/lib/auth/event-admins';
+import {
+    processRoleRequest,
+    subscribeRoleRequests,
+    type RoleRequestRecord,
+} from '@/lib/auth/role-requests';
 
 // TEMPORARY: Development super admin password
 const DEV_SUPER_ADMIN_PASSWORD = 'orienteer2024';
@@ -14,7 +20,7 @@ export default function SuperAdminPage() {
     const { isSuperAdmin, loading: adminLoading } = useSuperAdmin();
     const { setupAsSuperAdmin } = useSetupSuperAdmin();
     const { user } = useUserWithRoles();
-    const { assignClubRole } = useRoleManagement();
+    const { assignClubRole, assignSystemRole } = useRoleManagement();
 
     const [clubs, setClubs] = useState<Club[]>([]);
     const [showCreateClub, setShowCreateClub] = useState(false);
@@ -23,6 +29,11 @@ export default function SuperAdminPage() {
     const [passwordError, setPasswordError] = useState(false);
     const [maintenanceLoading, setMaintenanceLoading] = useState(false);
     const [maintenanceStatus, setMaintenanceStatus] = useState<string | null>(null);
+    const [roleRequests, setRoleRequests] = useState<RoleRequestRecord[]>([]);
+    const [roleRequestProcessingId, setRoleRequestProcessingId] = useState<string | null>(null);
+    const [knownUsers, setKnownUsers] = useState<Array<{ id: string; displayName?: string; email?: string }>>([]);
+    const [selectedSuperAdminUserId, setSelectedSuperAdminUserId] = useState('');
+    const [roleManagementMessage, setRoleManagementMessage] = useState<string | null>(null);
 
     useEffect(() => {
         // Load clubs from localStorage (in production, from Firestore)
@@ -30,6 +41,15 @@ export default function SuperAdminPage() {
         if (stored) {
             setClubs(JSON.parse(stored));
         }
+        setKnownUsers(getKnownRoleUsers());
+    }, []);
+
+    useEffect(() => {
+        const unsubscribe = subscribeRoleRequests((requests) => {
+            setRoleRequests(requests.filter((request) => request.status === 'pending'));
+        }, { status: 'pending' });
+
+        return () => unsubscribe?.();
     }, []);
 
     const handleDevActivation = () => {
