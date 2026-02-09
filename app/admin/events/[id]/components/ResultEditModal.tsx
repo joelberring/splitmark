@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { EventData, Entry, checkMP, calculateResultTime } from './shared';
 import { saveEntry } from '@/lib/firestore/entries';
 
@@ -11,13 +11,22 @@ interface Props {
 
 export default function ResultEditModal({ event, entryId, onClose, onSave }: Props) {
     const entry = event.entries.find(e => e.id === entryId);
-    if (!entry) return null;
+    const [formData, setFormData] = useState<Entry | null>(entry ? { ...entry } : null);
+    const [punches, setPunches] = useState<{ code: string; time: string }[]>(entry?.punches || []);
 
-    const [formData, setFormData] = useState<Entry>({ ...entry });
-    const [punches, setPunches] = useState<{ code: string; time: string }[]>(entry.punches || []);
-    const [originalClassId] = useState(entry.classId);
+    useEffect(() => {
+        if (!entry) {
+            setFormData(null);
+            setPunches([]);
+            return;
+        }
+
+        setFormData({ ...entry });
+        setPunches(entry.punches || []);
+    }, [entry, entryId]);
 
     const handleSave = async () => {
+        if (!formData) return;
         // ... same logic for status calculation
         let finalStatus = formData.status;
         let finalResultStatus = formData.resultStatus;
@@ -53,6 +62,8 @@ export default function ResultEditModal({ event, entryId, onClose, onSave }: Pro
             alert('Misslyckades att spara ändringarna.');
         }
     };
+
+    if (!entry || !formData) return null;
 
     const addPunch = () => {
         setPunches([...punches, { code: '', time: '' }]);

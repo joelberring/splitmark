@@ -23,11 +23,21 @@ interface Class {
 interface Props {
     event: any;
     entries: any[];
+    loading?: boolean;
 }
 
-export default function EntriesTab({ event, entries }: Props) {
+export default function EntriesTab({ event, entries, loading }: Props) {
     const [selectedClassId, setSelectedClassId] = useState<string>('all');
     const classes = event.classes || [];
+
+    if (loading) {
+        return (
+            <div className="bg-slate-900 border border-slate-800 rounded-lg p-12 text-center shadow-sm">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500 mx-auto mb-6"></div>
+                <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">Laddar anmälningar…</p>
+            </div>
+        );
+    }
 
     if (entries.length === 0) {
         return (

@@ -46,6 +46,20 @@ service cloud.firestore {
       );
     }
 
+    function isClubMember(clubId) {
+      return isSignedIn() && (
+        isSuperAdmin() ||
+        (
+          hasUserRolesDoc()
+          && userRolesDoc().data.clubs[clubId] != null
+        ) ||
+        (
+          exists(/databases/$(database)/documents/clubs/$(clubId))
+          && request.auth.uid in get(/databases/$(database)/documents/clubs/$(clubId)).data.admins
+        )
+      );
+    }
+
     function classificationNeedsClubAdmin(classification) {
       return classification in ['Regional', 'National', 'regional', 'national', 'district'];
     }
@@ -252,6 +266,31 @@ service cloud.firestore {
         resource.data.userId == request.auth.uid ||
         (
           resource.data.clubId is string
+          && isClubAdmin(resource.data.clubId)
+        )
+      );
+    }
+
+    // Map archive (reusable maps)
+    match /map_archive/{mapId} {
+      allow read: if isSignedIn() && (
+        resource.data.ownerUserId == request.auth.uid ||
+        (
+          resource.data.clubId is string
+          && resource.data.clubId.size() > 0
+          && isClubMember(resource.data.clubId)
+        )
+      );
+
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUserId == request.auth.uid;
+
+      allow update, delete: if isSignedIn() && (
+        isSuperAdmin() ||
+        resource.data.ownerUserId == request.auth.uid ||
+        (
+          resource.data.clubId is string
+          && resource.data.clubId.size() > 0
           && isClubAdmin(resource.data.clubId)
         )
       );

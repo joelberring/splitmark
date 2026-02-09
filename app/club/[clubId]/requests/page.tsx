@@ -85,7 +85,7 @@ export default function MembershipRequestsPage() {
         setProcessing(request.id);
 
         try {
-            const assignResult = assignClubRole(request.userId, clubId, 'member');
+            const assignResult = assignClubRole(request.userId, clubId, 'member', request.membershipKind);
             if (!assignResult.success) {
                 throw new Error(assignResult.error || 'Kunde inte tilldela medlemsroll.');
             }
@@ -210,6 +210,11 @@ export default function MembershipRequestsPage() {
                                             </h3>
                                             <p className="text-sm text-gray-500 dark:text-gray-400">
                                                 {request.userEmail || 'Ingen e-post'} · ansökte {new Date(request.requestedAt).toLocaleString('sv-SE')}
+                                            </p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                Medlemskap: <span className="font-semibold text-gray-700 dark:text-gray-200">
+                                                    {request.membershipKind === 'training' ? 'Träning' : 'Tävling'}
+                                                </span>
                                             </p>
                                             {request.requestCount > 1 && (
                                                 <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">

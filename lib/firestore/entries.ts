@@ -6,6 +6,7 @@ import {
     deleteDoc,
     onSnapshot,
     query,
+    limit,
     orderBy,
     writeBatch
 } from 'firebase/firestore';
@@ -170,6 +171,23 @@ export async function getEntries(eventId: string): Promise<Entry[]> {
     } catch (error) {
         console.error('Error fetching entries:', error);
         return getLocalEntries(eventId);
+    }
+}
+
+export async function hasAnyEntries(eventId: string): Promise<boolean> {
+    if (!eventId) return false;
+
+    if (!isFirebaseConfigured() || !firestore) {
+        return getLocalEntries(eventId).length > 0;
+    }
+
+    try {
+        const entriesRef = collection(firestore, COLLECTIONS.EVENTS, eventId, 'entries');
+        const snapshot = await getDocs(query(entriesRef, limit(1)));
+        return !snapshot.empty;
+    } catch (error) {
+        console.error('Error checking entries existence:', error);
+        return getLocalEntries(eventId).length > 0;
     }
 }
 

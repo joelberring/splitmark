@@ -43,7 +43,9 @@ export interface ZoomableMapProps {
     imageUrl: string;
     bounds?: MapBounds;
     course?: Course;
-    calibration?: CalibrationTransform;  // Optional calibration transform
+    // Optional transform used to align control coordinates (relX/relY) to the map image.
+    // Note: events also store georeferencing transforms (pixel->lat/lng) which are NOT compatible with this shape.
+    calibration?: CalibrationTransform;
     calibrationAnchors?: CalibrationAnchor[];
     className?: string;
 }
@@ -179,7 +181,13 @@ export default function ZoomableMap({ imageUrl, bounds, course, calibration, cal
         };
     };
 
-    // Apply calibration transform to relative coords
+    const alignmentCalibration = calibration
+        && Number.isFinite((calibration as any).tx)
+        && Number.isFinite((calibration as any).ty)
+        ? calibration
+        : undefined;
+
+    // Apply optional alignment transform to relative coords
     const getCalibratedPosition = (controlId: string, relX: number, relY: number): { x: number; y: number } => {
         // Check for anchor first
         const anchor = calibrationAnchors?.find(a => a.controlId === controlId);
@@ -188,10 +196,10 @@ export default function ZoomableMap({ imageUrl, bounds, course, calibration, cal
         }
 
         // Apply transform if available
-        if (calibration) {
+        if (alignmentCalibration) {
             return {
-                x: calibration.a * relX + calibration.b * relY + calibration.tx,
-                y: calibration.c * relX + calibration.d * relY + calibration.ty,
+                x: alignmentCalibration.a * relX + alignmentCalibration.b * relY + alignmentCalibration.tx,
+                y: alignmentCalibration.c * relX + alignmentCalibration.d * relY + alignmentCalibration.ty,
             };
         }
 

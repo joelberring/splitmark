@@ -6,6 +6,7 @@ import { db as localDb } from '@/lib/db';
 import { getTrack } from '@/lib/firestore/tracks';
 import type { DBTrack, GPSPoint } from '@/types/database';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import maplibregl from 'maplibre-gl';
 import PageHeader from '@/components/PageHeader';
 import { OrienteeringMapEngine } from '@/lib/maps/engine';
@@ -13,7 +14,9 @@ import { getEvent } from '@/lib/firestore/events';
 import { AnalysisEngine } from '@/lib/gps/analysis-engine';
 import type { GeoPoint } from '@/types/maps';
 
-export default function TrackDetailPage({ params }: { params: { id: string } }) {
+export default function TrackDetailPage() {
+    const params = useParams<{ id: string }>();
+    const trackIdsParam = params.id || '';
     const { user, loading: authLoading } = useRequireAuth('/login');
     const [tracks, setTracks] = useState<DBTrack[]>([]);
     const [loading, setLoading] = useState(true);
@@ -32,12 +35,12 @@ export default function TrackDetailPage({ params }: { params: { id: string } }) 
 
     useEffect(() => {
         loadTracks();
-    }, [params.id]);
+    }, [trackIdsParam]);
 
     const loadTracks = async () => {
         setLoading(true);
         try {
-            const ids = params.id.split(',');
+            const ids = trackIdsParam.split(',');
             const loadedTracks: DBTrack[] = [];
 
             for (const id of ids) {

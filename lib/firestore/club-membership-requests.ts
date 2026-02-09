@@ -1,5 +1,6 @@
 import {
     collection,
+    collectionGroup,
     deleteDoc,
     doc,
     getDoc,
@@ -9,9 +10,11 @@ import {
     query,
     setDoc,
     Timestamp,
+    where,
     type DocumentData,
 } from 'firebase/firestore';
 import { firestore, isFirebaseConfigured } from '@/lib/firebase';
+import type { ClubMembershipKind } from '@/types/roles';
 
 export type ClubMembershipRequestStatus = 'pending' | 'approved' | 'rejected' | 'blocked';
 
@@ -22,6 +25,7 @@ export interface ClubMembershipRequestRecord {
     userName?: string;
     userEmail?: string;
     message?: string;
+    membershipKind: ClubMembershipKind;
     status: ClubMembershipRequestStatus;
     requestCount: number;
     requestedAt: string;
@@ -79,6 +83,10 @@ function normalizeRequestStatus(value: unknown): ClubMembershipRequestStatus {
     return 'pending';
 }
 
+function normalizeMembershipKind(value: unknown): ClubMembershipKind {
+    return value === 'training' ? 'training' : 'competition';
+}
+
 function normalizeRequest(
     clubId: string,
     input: Partial<ClubMembershipRequestRecord> & { id: string; userId?: string }
@@ -99,6 +107,7 @@ function normalizeRequest(
         message: typeof input.message === 'string' && input.message.trim()
             ? input.message.trim()
             : undefined,
+        membershipKind: normalizeMembershipKind((input as Partial<ClubMembershipRequestRecord>).membershipKind),
         status: normalizeRequestStatus(input.status),
         requestCount: Math.max(1, Math.round(Number(input.requestCount || 1))),
         requestedAt: safeIso(input.requestedAt, nowIso),
@@ -280,6 +289,7 @@ function parseRequestDoc(clubId: string, docId: string, data: DocumentData): Clu
         userName: data.userName,
         userEmail: data.userEmail,
         message: data.message,
+        membershipKind: data.membershipKind,
         status: data.status,
         requestCount: data.requestCount,
         requestedAt: data.requestedAt?.toDate?.() || data.requestedAt,
@@ -313,6 +323,7 @@ async function persistRequest(clubId: string, request: ClubMembershipRequestReco
         userName: request.userName || null,
         userEmail: request.userEmail || null,
         message: request.message || null,
+        membershipKind: request.membershipKind,
         status: request.status,
         requestCount: request.requestCount,
         requestedAt: Timestamp.fromDate(new Date(request.requestedAt)),
@@ -384,12 +395,81 @@ export async function getClubMembershipBlock(
     }
 }
 
+export async function getUserClubMembershipRequests(
+    userId: string,
+    options?: { status?: ClubMembershipRequestStatus }
+): Promise<ClubMembershipRequestRecord[]> {
+    const resolvedUserId = String(userId || '').trim();
+    if (!resolvedUserId) return [];
+
+    const filterStatus = (requests: ClubMembershipRequestRecord[]) => (
+        options?.status ? requests.filter((item) => item.status === options.status) : requests
+    );
+
+    const scanLocalCache = (): ClubMembershipRequestRecord[] => {
+        if (typeof window === 'undefined') return [];
+
+        const prefix = `${requestsStorageKey('')}`;
+        const next: ClubMembershipRequestRecord[] = [];
+
+        for (let index = 0; index < localStorage.length; index += 1) {
+            const key = localStorage.key(index);
+            if (!key || !key.startsWith(prefix)) continue;
+            const clubId = key.slice(prefix.length);
+            if (!clubId) continue;
+            try {
+                const raw = localStorage.getItem(key);
+                if (!raw) continue;
+                const parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed)) continue;
+                parsed
+                    .filter((item) => item && typeof item === 'object' && (item.userId || item.id))
+                    .map((item) => normalizeRequest(clubId, item as ClubMembershipRequestRecord))
+                    .filter((item) => item.userId === resolvedUserId)
+                    .forEach((item) => next.push(item));
+            } catch {
+                continue;
+            }
+        }
+
+        return next;
+    };
+
+    if (!isFirebaseConfigured() || !firestore) {
+        return filterStatus(scanLocalCache());
+    }
+
+    try {
+        const snapshot = await getDocs(query(
+            collectionGroup(firestore, 'membership_requests'),
+            where('userId', '==', resolvedUserId)
+        ));
+
+        const requests: ClubMembershipRequestRecord[] = [];
+
+        snapshot.docs.forEach((requestDoc) => {
+            const data = requestDoc.data();
+            const clubId = String(data.clubId || requestDoc.ref.parent.parent?.id || '').trim();
+            if (!clubId) return;
+            const parsed = parseRequestDoc(clubId, requestDoc.id, data);
+            upsertLocalRequest(clubId, parsed);
+            requests.push(parsed);
+        });
+
+        return filterStatus(requests);
+    } catch (error) {
+        console.error('Error fetching user club membership requests:', error);
+        return filterStatus(scanLocalCache());
+    }
+}
+
 export async function createOrRenewClubMembershipRequest(params: {
     clubId: string;
     userId: string;
     userName?: string;
     userEmail?: string;
     message?: string;
+    membershipKind?: ClubMembershipKind;
 }): Promise<CreateClubMembershipRequestResult> {
     const clubId = String(params.clubId || '').trim();
     const userId = String(params.userId || '').trim();
@@ -430,6 +510,7 @@ export async function createOrRenewClubMembershipRequest(params: {
         userName: params.userName,
         userEmail: params.userEmail,
         message: params.message,
+        membershipKind: normalizeMembershipKind(params.membershipKind),
         status: 'pending',
         requestCount: Math.max(1, Number(existing?.requestCount || 0) + 1),
         requestedAt: nowIso,
@@ -478,6 +559,7 @@ export async function processClubMembershipRequest(params: {
         userName: existing?.userName,
         userEmail: existing?.userEmail,
         message: existing?.message,
+        membershipKind: existing?.membershipKind,
         status: params.status,
         requestCount: existing?.requestCount || 1,
         requestedAt: existing?.requestedAt || nowIso,

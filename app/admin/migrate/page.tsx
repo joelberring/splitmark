@@ -29,7 +29,7 @@ export default function MigratePage() {
             addLog('Data fetched successfully');
 
             // 2. Parse Data
-            let eventData: Partial<FirestoreEvent> = {
+            const eventData: Partial<FirestoreEvent> = {
                 id: 'ans-2025',
                 name: data.eventName,
                 date: data.eventDate,

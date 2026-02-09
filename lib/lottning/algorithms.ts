@@ -313,7 +313,7 @@ export function calculateLottningStats(
     });
 
     // Calculate separations
-    let separations: number[] = [];
+    const separations: number[] = [];
     Object.values(clubPositions).forEach(positions => {
         for (let i = 1; i < positions.length; i++) {
             separations.push(positions[i] - positions[i - 1]);
@@ -472,4 +472,3 @@ export function parseStartGroups(csv: string, interval: number = 120): StartGrou
 
     return groups;
 }
-

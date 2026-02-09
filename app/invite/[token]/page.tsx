@@ -12,6 +12,7 @@ export default function InvitePage() {
 
     const token = params.token as string;
     const clubId = searchParams.get('club');
+    const membershipKind = searchParams.get('kind') === 'training' ? 'training' : 'competition';
 
     const { user, loading: userLoading } = useUserWithRoles();
     const { assignClubRole } = useRoleManagement();
@@ -50,7 +51,7 @@ export default function InvitePage() {
         if (!user || !clubId) return;
 
         // Assign member role
-        assignClubRole(user.id, clubId, 'member');
+        assignClubRole(user.id, clubId, 'member', membershipKind);
 
         // Update club member count
         const storedClubs = localStorage.getItem('clubs');

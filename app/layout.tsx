@@ -1,11 +1,8 @@
 import type { Metadata } from "next";
-import { Outfit } from "next/font/google"; // Import Outfit
 import "./globals.css";
 import PWAProvider from '@/components/PWAProvider';
 import AppHeader from '@/components/AppHeader';
 import BottomNavigation from '@/components/BottomNavigation';
-
-const outfit = Outfit({ subsets: ["latin"] }); // Configure font
 
 export const metadata: Metadata = {
   title: "Splitmark - Next Generation Orienteering",
@@ -35,9 +32,16 @@ export default function RootLayout({
     <html lang="sv">
       <head>
         <link rel="manifest" href="/manifest.json" />
+        {/* Avoid build-time font fetch (works in restricted CI environments). */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap"
+          rel="stylesheet"
+        />
       </head>
       <body
-        className={`${outfit.className} antialiased min-h-screen selection:bg-emerald-500 selection:text-white`}
+        className="antialiased min-h-screen selection:bg-emerald-500 selection:text-white"
       >
         <PWAProvider>
           <AppHeader />

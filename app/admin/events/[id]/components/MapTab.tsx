@@ -281,14 +281,11 @@ export default function MapTab({ event: _event, eventId, setEvent }: MapTabProps
         return Math.max(0, Math.min(100, width * height * 100));
     }, [suggestedCropRect]);
 
-    const getCalibratedPosition = (ctrl: any) => {
-        if (calibration && ctrl.relX !== undefined && ctrl.relY !== undefined) {
-            const matrix = calibration as AffineMatrix;
-            const x = matrix.a * ctrl.relX + matrix.b * ctrl.relY + matrix.c;
-            const y = matrix.d * ctrl.relX + matrix.e * ctrl.relY + matrix.f;
-            return { x: x * 100, y: y * 100 };
-        }
-        return { x: (ctrl.relX ?? 0.5) * 100, y: (ctrl.relY ?? 0.5) * 100 };
+    const getControlPositionPercent = (ctrl: any) => {
+        return {
+            x: (ctrl.relX ?? 0.5) * 100,
+            y: (ctrl.relY ?? 0.5) * 100,
+        };
     };
 
     const handleSaveCalibration = async (gcps: GCP[], transform: AffineMatrix) => {
@@ -970,6 +967,10 @@ export default function MapTab({ event: _event, eventId, setEvent }: MapTabProps
                         )}
                     </div>
 
+                    <p className="text-[10px] text-slate-500">
+                        Tips: Om du sparar banor/kontroller blir detta även en återanvändbar träningsmall.
+                    </p>
+
                     {archiveStatus && (
                         <p className="text-xs text-emerald-400">{archiveStatus}</p>
                     )}
@@ -1299,7 +1300,7 @@ export default function MapTab({ event: _event, eventId, setEvent }: MapTabProps
                 </div>
             )}
 
-            {courses.length > 0 && calibration && (
+            {courses.length > 0 && (
                 <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
                     <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Förhandsgranska bana:</label>
                     <select value={selectedPreviewCourseId} onChange={(e) => setSelectedPreviewCourseId(e.target.value)} className="w-full md:w-auto px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white">
@@ -1315,7 +1316,7 @@ export default function MapTab({ event: _event, eventId, setEvent }: MapTabProps
                 </div>
                 <div className="relative bg-slate-950">
                     <img src={map.imageUrl} alt="Karta" className="w-full h-auto" style={{ maxHeight: '70vh', objectFit: 'contain' }} />
-                    {calibration && allControls.length > 0 && (
+                    {controlsWithRelativePosition.length > 0 && (
                         <svg className="absolute inset-0 pointer-events-none" style={{ width: '100%', height: '100%' }} preserveAspectRatio="xMidYMid meet">
                             {(() => {
                                 const color = '#d926a9';
@@ -1327,14 +1328,14 @@ export default function MapTab({ event: _event, eventId, setEvent }: MapTabProps
                                 if (selectedCourse) {
                                     courseControlIds.forEach((controlId: string, idx: number) => {
                                         const ctrl = allControls.find((c: any) => c.id === controlId);
-                                        if (ctrl) {
-                                            const pos = getCalibratedPosition(ctrl);
+                                        if (ctrl && typeof ctrl.relX === 'number' && typeof ctrl.relY === 'number') {
+                                            const pos = getControlPositionPercent(ctrl);
                                             coursePositions.push({ x: pos.x, y: pos.y, ctrl, seqNum: idx + 1 });
                                         }
                                     });
                                 } else {
-                                    allControls.forEach((ctrl: any) => {
-                                        const pos = getCalibratedPosition(ctrl);
+                                    controlsWithRelativePosition.forEach((ctrl: any) => {
+                                        const pos = getControlPositionPercent(ctrl);
                                         coursePositions.push({ x: pos.x, y: pos.y, ctrl, seqNum: 0 });
                                     });
                                 }

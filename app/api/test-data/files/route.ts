@@ -3,6 +3,10 @@ import { listTestDataFileCandidates } from '@/lib/test-event/files';
 
 export async function GET() {
     try {
+        if (process.env.NODE_ENV === 'production') {
+            return NextResponse.json({ success: false, message: 'Not available' }, { status: 404 });
+        }
+
         const files = await listTestDataFileCandidates(4);
         return NextResponse.json({
             success: true,

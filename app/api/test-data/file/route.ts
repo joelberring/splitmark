@@ -8,6 +8,10 @@ import {
 
 export async function GET(request: NextRequest) {
     try {
+        if (process.env.NODE_ENV === 'production') {
+            return NextResponse.json({ success: false, message: 'Not available' }, { status: 404 });
+        }
+
         const id = request.nextUrl.searchParams.get('id') || '';
         const resolved = await resolveTestDataFileById(id);
         if (!resolved) {
@@ -38,4 +42,3 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ success: false, message: 'Could not read file' }, { status: 500 });
     }
 }
-

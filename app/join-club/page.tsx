@@ -8,8 +8,9 @@ import { CLUBS, DISTRICTS, type Club } from '@/types/clubs';
 import { useUserWithRoles } from '@/lib/auth/usePermissions';
 import {
     createOrRenewClubMembershipRequest,
-    getClubMembershipRequest,
+    getUserClubMembershipRequests,
 } from '@/lib/firestore/club-membership-requests';
+import type { ClubMembershipKind } from '@/types/roles';
 
 interface UserProfile {
     clubId?: string;
@@ -27,6 +28,15 @@ export default function JoinClubPage() {
     const [submitMessage, setSubmitMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
     const [submittingClubId, setSubmittingClubId] = useState<string | null>(null);
     const [pendingClubIds, setPendingClubIds] = useState<Record<string, boolean>>({});
+    const [membershipKind, setMembershipKind] = useState<ClubMembershipKind>('competition');
+
+    const normalizeMembershipKind = (value: unknown): ClubMembershipKind => (
+        value === 'training' ? 'training' : 'competition'
+    );
+
+    const membershipKindLabel = (kind: ClubMembershipKind): string => (
+        kind === 'training' ? 'Träningsmedlemskap' : 'Tävlingsmedlemskap'
+    );
 
     useEffect(() => {
         const stored = localStorage.getItem('userProfile');
@@ -46,14 +56,14 @@ export default function JoinClubPage() {
 
         const loadPending = async () => {
             const next: Record<string, boolean> = {};
-            await Promise.all(
-                CLUBS.map(async (club) => {
-                    const existing = await getClubMembershipRequest(club.id, user.id);
-                    if (existing?.status === 'pending') {
-                        next[club.id] = true;
+            const requests = await getUserClubMembershipRequests(user.id);
+            requests
+                .filter((request) => request.status === 'pending')
+                .forEach((request) => {
+                    if (request.clubId) {
+                        next[request.clubId] = true;
                     }
-                })
-            );
+                });
 
             if (!cancelled) {
                 setPendingClubIds(next);
@@ -80,6 +90,38 @@ export default function JoinClubPage() {
             return;
         }
 
+        const existingClubIds = Object.keys(user.clubs || {});
+        const isAlreadyMember = !!user.clubs?.[club.id];
+        const existingKinds = existingClubIds
+            .filter((clubId) => clubId !== club.id)
+            .map((clubId) => normalizeMembershipKind((user.clubs as any)?.[clubId]?.membershipKind));
+
+        if (!isAlreadyMember) {
+            if (existingClubIds.length >= 2) {
+                setSubmitMessage({
+                    type: 'error',
+                    text: 'Du kan vara medlem i max två klubbar (1 tävling + 1 träning).',
+                });
+                return;
+            }
+
+            if (existingKinds.includes(membershipKind)) {
+                const existingClubId = existingClubIds.find((clubId) =>
+                    normalizeMembershipKind((user.clubs as any)?.[clubId]?.membershipKind) === membershipKind
+                );
+                const existingClubName = existingClubId
+                    ? CLUBS.find((item) => item.id === existingClubId)?.name
+                    : undefined;
+                setSubmitMessage({
+                    type: 'error',
+                    text: existingClubName
+                        ? `Du har redan ${membershipKindLabel(membershipKind).toLowerCase()} i ${existingClubName}.`
+                        : `Du har redan ${membershipKindLabel(membershipKind).toLowerCase()} i en annan klubb.`,
+                });
+                return;
+            }
+        }
+
         setSubmittingClubId(club.id);
         setSubmitMessage(null);
 
@@ -90,6 +132,7 @@ export default function JoinClubPage() {
                 userName: user.displayName,
                 userEmail: user.email,
                 message: '',
+                membershipKind,
             });
 
             if (response.status === 'blocked') {
@@ -194,6 +237,41 @@ export default function JoinClubPage() {
                         </div>
                     )}
                 </div>
+
+                {user && (
+                    <div className="max-w-2xl mx-auto mt-3 flex items-center justify-between gap-3">
+                        <div className="text-[10px] uppercase tracking-widest font-black text-slate-500">
+                            Medlemskapstyp
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setMembershipKind('competition')}
+                                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-colors ${
+                                    membershipKind === 'competition'
+                                        ? 'bg-emerald-600 border-emerald-500 text-white'
+                                        : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
+                                }`}
+                            >
+                                Tävling
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setMembershipKind('training')}
+                                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-colors ${
+                                    membershipKind === 'training'
+                                        ? 'bg-emerald-600 border-emerald-500 text-white'
+                                        : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
+                                }`}
+                            >
+                                Träning
+                            </button>
+                            <div className="text-[10px] text-slate-500">
+                                Max 2 klubbar (1 tävling + 1 träning)
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {submitMessage && (
                     <div className={`max-w-2xl mx-auto mt-3 rounded-lg px-3 py-2 text-xs ${

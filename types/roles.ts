@@ -8,6 +8,9 @@ export type SystemRole = 'super_admin' | 'user';
 // Club-level role (per club)
 export type ClubRole = 'club_admin' | 'trainer' | 'member';
 
+// Club membership kind (limits user to max two clubs: one competition + one training)
+export type ClubMembershipKind = 'competition' | 'training';
+
 // Event-level role (per event)
 // Keep "organizer" for backward compatibility with already stored role data.
 export type EventRole = 'event_admin' | 'organizer';
@@ -32,6 +35,7 @@ export type Action =
 export interface ClubMembership {
     clubId: string;
     role: ClubRole;
+    membershipKind: ClubMembershipKind;
     teams: string[]; // Team IDs user belongs to
     trainedTeams: string[]; // Team IDs user trains (if trainer)
     joinedAt: Date;
@@ -134,6 +138,7 @@ export interface ClubMembershipRequest {
     clubId: string;
     userId: string;
     message?: string;
+    membershipKind?: ClubMembershipKind;
     requestedAt: Date;
     status: 'pending' | 'approved' | 'rejected' | 'blocked';
     processedBy?: string;

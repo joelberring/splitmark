@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useAuthState } from '@/lib/auth/hooks';
 import { registerEntry, registerEntriesBatch } from '@/lib/firestore/entries';
 import { getEventAccessProfile } from '@/lib/events/competition';
@@ -208,18 +209,18 @@ export default function RegisterModal({
                     {!user && (
                         <div className="p-4 bg-blue-950/30 border border-blue-900/50 rounded-lg text-sm text-blue-300 font-medium">
                             För att anmäla dig behöver du vara inloggad.
-                            <a href="/login" className="font-bold underline ml-1 hover:text-blue-200">
+                            <Link href="/login" className="font-bold underline ml-1 hover:text-blue-200">
                                 Logga in
-                            </a>
+                            </Link>
                         </div>
                     )}
 
                     {!isProfileComplete && (
                         <div className="p-4 bg-amber-950/30 border border-amber-900/50 rounded-lg text-sm text-amber-500 font-medium">
                             Din profil saknar klubb eller SI-nummer.
-                            <a href="/profile" className="font-bold underline ml-1 hover:text-amber-400">
+                            <Link href="/profile" className="font-bold underline ml-1 hover:text-amber-400">
                                 Uppdatera profil
-                            </a>
+                            </Link>
                         </div>
                     )}
 

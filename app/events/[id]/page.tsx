@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
@@ -13,8 +13,8 @@ import RegisterModal from '@/components/Events/RegisterModal';
 import { StoredEvent } from '@/types/event';
 import type { Entry, EntryWithResult } from '@/types/entry';
 import { getEvent } from '@/lib/firestore/events';
-import { subscribeToEntries } from '@/lib/firestore/entries';
-import { subscribeToResults } from '@/lib/firestore/results';
+import { hasAnyEntries, subscribeToEntries } from '@/lib/firestore/entries';
+import { hasAnyResults, subscribeToResults } from '@/lib/firestore/results';
 import { useAuthState } from '@/lib/auth/hooks';
 import { getEventAccessProfile } from '@/lib/events/competition';
 import {
@@ -32,43 +32,111 @@ export default function EventDetailsPage() {
     const [entries, setEntries] = useState<Entry[]>([]);
     const [results, setResults] = useState<EntryWithResult[]>([]);
     const [loading, setLoading] = useState(true);
+    const [entriesLoading, setEntriesLoading] = useState(false);
+    const [resultsLoading, setResultsLoading] = useState(false);
+    const [entriesLoaded, setEntriesLoaded] = useState(false);
+    const [resultsLoaded, setResultsLoaded] = useState(false);
+    const [hasEntries, setHasEntries] = useState<boolean | null>(null);
+    const [hasResults, setHasResults] = useState<boolean | null>(null);
     const [activeTab, setActiveTab] = useState<'info' | 'classes' | 'entries' | 'results' | 'map' | 'training' | 'chat'>('info');
     const [showRegisterModal, setShowRegisterModal] = useState(false);
+    const entriesLoadedRef = useRef(false);
+    const resultsLoadedRef = useRef(false);
 
     useEffect(() => {
-        let unsubscribeEntries = () => { };
-        let unsubscribeResults = () => { };
+        let cancelled = false;
 
-        const loadData = async () => {
+        const loadData = async (): Promise<void> => {
             try {
+                setLoading(true);
+                setEvent(null);
+                setEntries([]);
+                setResults([]);
+                setEntriesLoaded(false);
+                setResultsLoaded(false);
+                entriesLoadedRef.current = false;
+                resultsLoadedRef.current = false;
+                setHasEntries(null);
+                setHasResults(null);
+
                 const fetchedEvent = await getEvent(eventId);
-                if (fetchedEvent) {
-                    setEvent(fetchedEvent as unknown as StoredEvent);
+                if (!cancelled) {
+                    if (fetchedEvent) {
+                        setEvent(fetchedEvent as unknown as StoredEvent);
+                    }
+                }
 
-                    // Subscribe to entries
-                    unsubscribeEntries = subscribeToEntries(eventId, (updatedEntries) => {
-                        setEntries(updatedEntries);
-                    });
-
-                    // Subscribe to results
-                    unsubscribeResults = subscribeToResults(eventId, (updatedResults) => {
-                        setResults(updatedResults);
-                    });
+                const [anyEntries, anyResults] = await Promise.all([
+                    hasAnyEntries(eventId),
+                    hasAnyResults(eventId),
+                ]);
+                if (!cancelled) {
+                    setHasEntries(anyEntries);
+                    setHasResults(anyResults);
                 }
             } catch (err) {
                 console.error('Failed to load event data:', err);
             } finally {
-                setLoading(false);
+                if (!cancelled) {
+                    setLoading(false);
+                }
             }
         };
 
-        loadData();
+        void loadData();
 
         return () => {
-            unsubscribeEntries();
-            unsubscribeResults();
+            cancelled = true;
         };
     }, [eventId]);
+
+    useEffect(() => {
+        if (!event) return;
+        if (activeTab !== 'entries') return;
+
+        let isMounted = true;
+        if (!entriesLoadedRef.current) {
+            setEntriesLoading(true);
+        }
+
+        const unsubscribe = subscribeToEntries(eventId, (updatedEntries) => {
+            if (!isMounted) return;
+            setEntries(updatedEntries);
+            setEntriesLoaded(true);
+            entriesLoadedRef.current = true;
+            setEntriesLoading(false);
+            setHasEntries(updatedEntries.length > 0);
+        });
+
+        return () => {
+            isMounted = false;
+            unsubscribe?.();
+        };
+    }, [activeTab, event, eventId]);
+
+    useEffect(() => {
+        if (!event) return;
+        if (activeTab !== 'results') return;
+
+        let isMounted = true;
+        if (!resultsLoadedRef.current) {
+            setResultsLoading(true);
+        }
+
+        const unsubscribe = subscribeToResults(eventId, (updatedResults) => {
+            if (!isMounted) return;
+            setResults(updatedResults);
+            setResultsLoaded(true);
+            resultsLoadedRef.current = true;
+            setResultsLoading(false);
+            setHasResults(updatedResults.length > 0);
+        });
+
+        return () => {
+            isMounted = false;
+            unsubscribe?.();
+        };
+    }, [activeTab, event, eventId]);
 
     if (loading) {
         return (
@@ -96,9 +164,8 @@ export default function EventDetailsPage() {
     const eventAccess = getEventAccessProfile(event, user);
     const isCompleted = eventAccess.status === 'completed';
     const isPastDate = event.date && new Date(event.date) < new Date();
-    const hasEntriesCount = entries.length > 0;
-    const hasResultsCount = results.length > 0;
-    const showResults = eventAccess.canViewResults || isPastDate || hasResultsCount;
+    const showResults = eventAccess.canViewResults || isPastDate || !!hasResults;
+    const showEntries = hasEntries === null ? true : (hasEntries || !showResults);
     const canRegister = eventAccess.canRegister;
     const canRequestRegistration = eventAccess.status === 'upcoming';
     const hasMap = event.map && event.map.imageUrl;
@@ -211,11 +278,11 @@ export default function EventDetailsPage() {
                             onClick={() => setActiveTab('classes')}
                             label="Klasser"
                         />
-                        {(hasEntriesCount || !showResults) && (
+                        {showEntries && (
                             <TabButton
                                 active={activeTab === 'entries'}
                                 onClick={() => setActiveTab('entries')}
-                                label={`Anmälda ${entries.length > 0 ? `(${entries.length})` : ''}`}
+                                label={`Anmälda ${entriesLoaded && entries.length > 0 ? `(${entries.length})` : ''}`}
                             />
                         )}
                         {showResults && (
@@ -258,8 +325,8 @@ export default function EventDetailsPage() {
             <div className="max-w-7xl mx-auto px-4 py-8">
                 {activeTab === 'info' && <InfoTab event={event} />}
                 {activeTab === 'classes' && <ClassesTab event={event} />}
-                {activeTab === 'entries' && <EntriesTab event={event} entries={entries} />}
-                {activeTab === 'results' && <ResultsTab event={event} results={results} />}
+                {activeTab === 'entries' && <EntriesTab event={event} entries={entries} loading={!entriesLoaded && entriesLoading} />}
+                {activeTab === 'results' && <ResultsTab event={event} results={results} loading={!resultsLoaded && resultsLoading} />}
                 {activeTab === 'map' && hasMap && <MapTab event={event} />}
                 {activeTab === 'training' && hasTrainingCourses && <TrainingTab event={event} />}
                 {activeTab === 'chat' && (

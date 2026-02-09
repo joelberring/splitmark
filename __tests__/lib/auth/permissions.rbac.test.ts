@@ -6,6 +6,7 @@ function buildMembership(overrides?: Partial<ClubMembership>): ClubMembership {
     return {
         clubId: 'club-1',
         role: 'member',
+        membershipKind: 'competition',
         teams: [],
         trainedTeams: [],
         joinedAt: new Date('2025-01-01T00:00:00.000Z'),

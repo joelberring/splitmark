@@ -158,7 +158,7 @@ export default function EntriesPage() {
             const siCard = row['si'] || row['sicard'] || row['bricka'] || row['card'] || '';
 
             if (firstName && lastName) {
-                let classId = classes.find(c => c.name.toLowerCase() === className.toLowerCase())?.id;
+                const classId = classes.find(c => c.name.toLowerCase() === className.toLowerCase())?.id;
 
                 await handleSaveEntry({
                     id: `entry-${Date.now()}-${i}`,

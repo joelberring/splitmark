@@ -14,6 +14,7 @@ import {
 interface Props {
     event: any;
     results: any[];
+    loading?: boolean;
 }
 
 interface DisplayClass {
@@ -29,7 +30,7 @@ interface DisplayGroup {
     winnerTime?: number;
 }
 
-export default function ResultsTab({ event, results }: Props) {
+export default function ResultsTab({ event, results, loading }: Props) {
     const [selectedEntry, setSelectedEntry] = useState<any | null>(null);
     const [selectedClassId, setSelectedClassId] = useState<string>('all');
     const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
@@ -71,6 +72,15 @@ export default function ResultsTab({ event, results }: Props) {
     const filteredClasses = selectedClassId === 'all'
         ? rankedClasses
         : rankedClasses.filter((group) => group.class.id === selectedClassId);
+
+    if (loading) {
+        return (
+            <div className="bg-slate-900 border border-slate-800 rounded-lg p-12 text-center shadow-sm">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500 mx-auto mb-6"></div>
+                <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">Laddar resultat…</p>
+            </div>
+        );
+    }
 
     if (results.length === 0 || rankedClasses.length === 0) {
         return (

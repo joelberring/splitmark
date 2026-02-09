@@ -6,6 +6,7 @@ import {
     onSnapshot,
     query,
     where,
+    limit,
     orderBy,
     writeBatch
 } from 'firebase/firestore';
@@ -75,6 +76,23 @@ function upsertLocalResult(eventId: string, result: EntryWithResult): void {
 function emitLocalResultsUpdated(eventId: string): void {
     if (typeof window === 'undefined') return;
     window.dispatchEvent(new CustomEvent(LOCAL_RESULTS_EVENT, { detail: { eventId } }));
+}
+
+export async function hasAnyResults(eventId: string): Promise<boolean> {
+    if (!eventId) return false;
+
+    if (!isFirebaseConfigured() || !firestore) {
+        return getLocalResults(eventId).length > 0;
+    }
+
+    try {
+        const resultsRef = collection(firestore, COLLECTIONS.EVENTS, eventId, 'results');
+        const snapshot = await getDocs(query(resultsRef, limit(1)));
+        return !snapshot.empty;
+    } catch (error) {
+        console.error('Error checking results existence:', error);
+        return getLocalResults(eventId).length > 0;
+    }
 }
 
 export async function getResultsByClass(eventId: string, classId: string): Promise<EntryWithResult[]> {
@@ -184,4 +202,3 @@ export async function batchPublishResults(eventId: string, results: EntryWithRes
     results.forEach(result => upsertLocalResult(eventId, result));
     emitLocalResultsUpdated(eventId);
 }
-

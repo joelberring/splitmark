@@ -14,12 +14,37 @@ import {
     isEventAdmin,
 } from './permissions';
 import { registerKnownUserIdentity } from './event-admins';
-import type { UserWithRoles, Action, ResourceType, PermissionResult } from '@/types/roles';
+import type { ClubMembershipKind, UserWithRoles, Action, ResourceType, PermissionResult } from '@/types/roles';
 
 /**
  * Convert basic user to UserWithRoles
  * In production, fetch full role data from Firestore
  */
+function normalizeMembershipKind(value: unknown): ClubMembershipKind {
+    return value === 'training' ? 'training' : 'competition';
+}
+
+function normalizeClubMemberships(input: unknown): UserWithRoles['clubs'] {
+    if (!input || typeof input !== 'object') return {};
+
+    const next: UserWithRoles['clubs'] = {};
+    for (const [clubId, membership] of Object.entries(input as Record<string, any>)) {
+        if (!clubId || !membership || typeof membership !== 'object') continue;
+        next[clubId] = {
+            clubId,
+            role: membership.role === 'club_admin' || membership.role === 'trainer' ? membership.role : 'member',
+            membershipKind: normalizeMembershipKind(membership.membershipKind),
+            teams: Array.isArray(membership.teams) ? membership.teams.filter(Boolean) : [],
+            trainedTeams: Array.isArray(membership.trainedTeams) ? membership.trainedTeams.filter(Boolean) : [],
+            joinedAt: new Date(membership.joinedAt || Date.now()),
+            invitedBy: typeof membership.invitedBy === 'string' && membership.invitedBy.trim()
+                ? membership.invitedBy.trim()
+                : 'unknown',
+        };
+    }
+    return next;
+}
+
 function enrichUserWithRoles(user: any): UserWithRoles | null {
     if (!user) return null;
 
@@ -42,7 +67,7 @@ function enrichUserWithRoles(user: any): UserWithRoles | null {
             displayName: user.displayName || 'Användare',
             photoURL: user.photoURL,
             systemRole: parsed.systemRole || 'user',
-            clubs: parsed.clubs || {},
+            clubs: normalizeClubMemberships(parsed.clubs),
             eventRoles: parsed.eventRoles || {},
             createdAt: new Date(parsed.createdAt || Date.now()),
             lastLoginAt: new Date(),
@@ -91,7 +116,7 @@ export function useUserWithRoles(): {
                     displayName: parsed.displayName || 'Dev User',
                     photoURL: undefined,
                     systemRole: parsed.systemRole || 'user',
-                    clubs: parsed.clubs || {},
+                    clubs: normalizeClubMemberships(parsed.clubs),
                     eventRoles: parsed.eventRoles || {},
                     createdAt: new Date(parsed.createdAt || Date.now()),
                     lastLoginAt: new Date(),
@@ -228,7 +253,12 @@ export function useRoleManagement() {
     const { isSuperAdmin } = useSuperAdmin();
 
     const assignClubRole = useCallback(
-        (targetUserId: string, clubId: string, role: 'club_admin' | 'trainer' | 'member') => {
+        (
+            targetUserId: string,
+            clubId: string,
+            role: 'club_admin' | 'trainer' | 'member',
+            membershipKind?: ClubMembershipKind
+        ) => {
             if (!isSuperAdmin && user?.clubs[clubId]?.role !== 'club_admin') {
                 return { success: false, error: 'Ingen behörighet' };
             }
@@ -237,12 +267,46 @@ export function useRoleManagement() {
             const storedRoles = localStorage.getItem(`user-roles-${targetUserId}`);
             const parsed = storedRoles ? JSON.parse(storedRoles) : { systemRole: 'user', clubs: {}, eventRoles: {} };
 
+            parsed.clubs = parsed.clubs || {};
+
+            const existingMembership = parsed.clubs?.[clubId];
+            const currentKind = normalizeMembershipKind(existingMembership?.membershipKind);
+            const nextKind = normalizeMembershipKind(membershipKind ?? existingMembership?.membershipKind);
+            const isAddingNewClub = !existingMembership;
+            const isKindChanging = !!existingMembership && !!membershipKind && nextKind !== currentKind;
+
+            const otherMemberships = Object.entries(parsed.clubs as Record<string, any>)
+                .filter(([existingClubId]) => existingClubId !== clubId);
+
+            if (isAddingNewClub) {
+                if (otherMemberships.length >= 2) {
+                    return { success: false, error: 'Användaren kan bara vara medlem i max två klubbar.' };
+                }
+            }
+
+            if (isAddingNewClub || isKindChanging) {
+                const conflict = otherMemberships.find(([, membership]) =>
+                    normalizeMembershipKind(membership?.membershipKind) === nextKind
+                );
+                if (conflict) {
+                    return {
+                        success: false,
+                        error: nextKind === 'training'
+                            ? 'Användaren har redan träningsmedlemskap i en annan klubb.'
+                            : 'Användaren har redan tävlingsmedlemskap i en annan klubb.',
+                    };
+                }
+            }
+
             parsed.clubs[clubId] = {
+                ...(existingMembership || {}),
+                clubId,
                 role,
-                teams: [],
-                trainedTeams: [],
-                joinedAt: new Date().toISOString(),
-                invitedBy: user?.id,
+                membershipKind: nextKind,
+                teams: Array.isArray(existingMembership?.teams) ? existingMembership.teams : [],
+                trainedTeams: Array.isArray(existingMembership?.trainedTeams) ? existingMembership.trainedTeams : [],
+                joinedAt: existingMembership?.joinedAt || new Date().toISOString(),
+                invitedBy: existingMembership?.invitedBy || user?.id,
             };
 
             localStorage.setItem(`user-roles-${targetUserId}`, JSON.stringify(parsed));

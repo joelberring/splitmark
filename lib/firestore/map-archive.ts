@@ -10,6 +10,7 @@ import {
     type DocumentData,
     where,
 } from 'firebase/firestore';
+import type { Query as FirestoreQuery } from 'firebase/firestore';
 import { firestore, isFirebaseConfigured } from '@/lib/firebase';
 import type {
     EventPlanningControl,
@@ -249,29 +250,59 @@ export function subscribeToMapArchiveEntries(
     }
 
     const archiveRef = collection(firestore, 'map_archive');
-    const archiveQuery = query(archiveRef, orderBy('updatedAt', 'desc'));
+    const sources = new Map<string, Map<string, MapArchiveEntry>>();
+    const unsubscribers: Array<() => void> = [];
 
-    const unsubscribe = onSnapshot(archiveQuery, (snapshot) => {
-        const parsed = snapshot.docs.map((item) => parseDoc(item.id, item.data()));
-        const merged = readLocalEntries();
+    const recompute = () => {
         const mergedById = new Map<string, MapArchiveEntry>();
 
-        for (const localEntry of merged) {
-            mergedById.set(localEntry.id, localEntry);
+        for (const sourceMap of sources.values()) {
+            for (const [id, entry] of sourceMap.entries()) {
+                mergedById.set(id, entry);
+            }
         }
-        for (const cloudEntry of parsed) {
-            mergedById.set(cloudEntry.id, cloudEntry);
+
+        // Merge in locally cached entries as offline fallback (cloud wins).
+        for (const localEntry of readLocalEntries()) {
+            if (!mergedById.has(localEntry.id)) {
+                mergedById.set(localEntry.id, localEntry);
+            }
         }
 
         const nextAll = Array.from(mergedById.values());
         writeLocalEntries(nextAll);
         callback(filterByAccess(nextAll, options));
-    }, (error) => {
-        console.error('Error subscribing to map archive:', error);
-        publishLocal();
-    });
+    };
 
-    return unsubscribe;
+    const listen = (key: string, q: FirestoreQuery<DocumentData>) => {
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const next = new Map<string, MapArchiveEntry>();
+            snapshot.docs.forEach((docSnap) => {
+                next.set(docSnap.id, parseDoc(docSnap.id, docSnap.data()));
+            });
+            sources.set(key, next);
+            recompute();
+        }, (error) => {
+            console.error(`Error subscribing to map archive (${key}):`, error);
+            sources.set(key, new Map());
+            recompute();
+        });
+
+        unsubscribers.push(unsubscribe);
+    };
+
+    listen('owner', query(archiveRef, where('ownerUserId', '==', options.userId)));
+
+    if (options.includeClubShared) {
+        const clubIds = Array.from(new Set((options.clubIds || []).filter(Boolean)));
+        clubIds.forEach((clubId) => {
+            listen(`club:${clubId}`, query(archiveRef, where('clubId', '==', clubId)));
+        });
+    }
+
+    return () => {
+        unsubscribers.forEach((unsubscribe) => unsubscribe());
+    };
 }
 
 export async function upsertMapArchiveEntry(input: UpsertMapArchiveInput): Promise<MapArchiveEntry> {

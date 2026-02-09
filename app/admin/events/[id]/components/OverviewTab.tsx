@@ -39,7 +39,8 @@ export default function OverviewTab({ event, setEvent }: OverviewTabProps) {
         () => new Set(getClubAdminUserIds(event.clubId)),
         [event.clubId, event.eventAdminIds]
     );
-    const knownUsers = useMemo(() => getKnownRoleUsers(), [event.id, adminIds.join('|')]);
+    const adminIdsKey = useMemo(() => adminIds.join('|'), [adminIds]);
+    const knownUsers = useMemo(() => getKnownRoleUsers(), [adminIdsKey]);
     const knownUsersById = useMemo(
         () => new Map(knownUsers.map((knownUser) => [knownUser.id, knownUser])),
         [knownUsers]

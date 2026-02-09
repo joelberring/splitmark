@@ -240,6 +240,46 @@ export default function EventTrainingPage() {
             .slice(0, 12);
     }, [sharedSessions]);
 
+    const handleSessionComplete = useCallback((session: VirtualTrainingSession) => {
+        if (!selectedCourse) return;
+
+        const start = session.startTime instanceof Date
+            ? session.startTime.getTime()
+            : new Date(session.startTime || new Date()).getTime();
+        const finish = session.finishTime instanceof Date
+            ? session.finishTime.getTime()
+            : new Date(session.finishTime || new Date()).getTime();
+
+        const elapsedSeconds = Math.max(0, Math.floor((finish - start) / 1000));
+        const nowIso = new Date().toISOString();
+        const nextRecord: TrainingSessionRecord = {
+            id: session.id,
+            eventId,
+            courseId: selectedCourse.id,
+            courseName: selectedCourse.name,
+            userId: user?.uid || undefined,
+            userName: user?.displayName || undefined,
+            finishedAt: new Date(finish).toISOString(),
+            elapsedSeconds,
+            punchedCount: session.punches.length,
+            expectedCount: session.expectedControls.length,
+            result: session.result || 'dnf',
+            missingControls: session.missingControls || [],
+            createdAt: nowIso,
+            updatedAt: nowIso,
+        };
+
+        setSessionHistory((previous) => {
+            const next = [nextRecord, ...previous].slice(0, 20);
+            localStorage.setItem(storageKey, JSON.stringify(next));
+            return next;
+        });
+
+        if (user?.uid) {
+            void saveTrainingSession(eventId, nextRecord);
+        }
+    }, [eventId, selectedCourse, storageKey, user?.displayName, user?.uid]);
+
     if (loading) {
         return (
             <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -282,46 +322,6 @@ export default function EventTrainingPage() {
 
     const missingCodes = virtualCourse.missingControlCodes;
     const canStart = selectedCourse.gpsMode.enabled && missingCodes.length === 0 && virtualCourse.controls.length >= 2;
-
-    const handleSessionComplete = useCallback((session: VirtualTrainingSession) => {
-        if (!selectedCourse) return;
-
-        const start = session.startTime instanceof Date
-            ? session.startTime.getTime()
-            : new Date(session.startTime || new Date()).getTime();
-        const finish = session.finishTime instanceof Date
-            ? session.finishTime.getTime()
-            : new Date(session.finishTime || new Date()).getTime();
-
-        const elapsedSeconds = Math.max(0, Math.floor((finish - start) / 1000));
-        const nowIso = new Date().toISOString();
-        const nextRecord: TrainingSessionRecord = {
-            id: session.id,
-            eventId,
-            courseId: selectedCourse.id,
-            courseName: selectedCourse.name,
-            userId: user?.uid || undefined,
-            userName: user?.displayName || undefined,
-            finishedAt: new Date(finish).toISOString(),
-            elapsedSeconds,
-            punchedCount: session.punches.length,
-            expectedCount: session.expectedControls.length,
-            result: session.result || 'dnf',
-            missingControls: session.missingControls || [],
-            createdAt: nowIso,
-            updatedAt: nowIso,
-        };
-
-        setSessionHistory((previous) => {
-            const next = [nextRecord, ...previous].slice(0, 20);
-            localStorage.setItem(storageKey, JSON.stringify(next));
-            return next;
-        });
-
-        if (user?.uid) {
-            void saveTrainingSession(eventId, nextRecord);
-        }
-    }, [eventId, selectedCourse, storageKey, user?.displayName, user?.uid]);
 
     if (startRunner) {
         return (
